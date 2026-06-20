@@ -44,7 +44,8 @@ export default function UsersPage() {
       if (error) { toast.error(`Invite failed: ${error.message}`); return; }
       if (result?.error) { toast.error(`Invite failed: ${result.error}`); return; }
 
-      toast.success(`Invited ${inviteName}`);
+      const pw = result?.user?.temp_password;
+      toast.success(`Invited ${inviteName}${pw ? ` (temp password: ${pw})` : ''}`);
       setInviteOpen(false);
       setInviteEmail('');
       setInviteName('');

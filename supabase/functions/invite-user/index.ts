@@ -30,8 +30,11 @@ serve(async (req) => {
       )
     }
 
+    const tempPassword = Math.random().toString(36).slice(2, 10) + 'Aa1!'
+
     const { data: userData, error: createError } = await supabase.auth.admin.createUser({
       email,
+      password: tempPassword,
       email_confirm: true,
       user_metadata: { display_name, company_id },
     })
@@ -62,7 +65,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ user: { id: userId, email, display_name, company_id } }),
+      JSON.stringify({ user: { id: userId, email, display_name, company_id, temp_password: tempPassword } }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
     )
   } catch (err) {
