@@ -107,16 +107,16 @@ function DashboardContent() {
   const showStitching = currentModule === 'stitching' || currentModule === 'both';
 
   const cards = [
-    ...(showPrinting ? [{ title: 'Active Printing', value: stats.activePrinting, icon: Printer, onClick: () => navigate('/printing-orders'), color: '' }] : []),
-    ...(showStitching ? [{ title: 'Active Stitching', value: stats.activeStitching, icon: Scissors, onClick: () => navigate('/stitching-orders'), color: '' }] : []),
-    { title: 'Delayed Orders', value: stats.delayedOrders, icon: AlertTriangle, onClick: () => navigate('/production-control'), color: stats.delayedOrders > 0 ? 'text-destructive' : '' },
-    { title: 'Open Stock Jobs', value: stats.openStockJobs, icon: Factory, onClick: () => navigate('/stock-jobs'), color: '' },
-    { title: "Today's Entries", value: stats.todayCount, icon: ClipboardList, onClick: () => navigate('/entries'), color: '' },
-    { title: "Today's Output", value: stats.todayOutput, icon: Package, onClick: () => navigate('/reports'), color: '' },
-    { title: "Today's Cost", value: `₹${stats.todayCost.toFixed(0)}`, icon: DollarSign, onClick: () => navigate('/reports'), color: '' },
-    { title: 'Pending POs', value: stats.pendingPOs, icon: ShoppingCart, onClick: () => navigate('/purchase-orders'), color: '' },
-    { title: 'Low Stock Items', value: stats.lowStockItems, icon: Warehouse, onClick: () => navigate('/inventory'), color: stats.lowStockItems > 0 ? 'text-destructive' : '' },
-    { title: "Today's Dispatches", value: stats.todayDispatches, icon: Truck, onClick: () => navigate('/dispatch'), color: '' },
+    ...(showPrinting ? [{ title: 'Active Printing', value: stats.activePrinting, icon: Printer, onClick: () => navigate('/printing-orders'), color: stats.activePrinting > 0 ? 'text-amber-600' : 'text-muted-foreground', border: 'border-l-amber-400' }] : []),
+    ...(showStitching ? [{ title: 'Active Stitching', value: stats.activeStitching, icon: Scissors, onClick: () => navigate('/stitching-orders'), color: stats.activeStitching > 0 ? 'text-amber-600' : 'text-muted-foreground', border: 'border-l-amber-400' }] : []),
+    { title: 'Delayed Orders', value: stats.delayedOrders, icon: AlertTriangle, onClick: () => navigate('/production-control'), color: stats.delayedOrders > 0 ? 'text-red-600' : 'text-muted-foreground', border: stats.delayedOrders > 0 ? 'border-l-red-500' : 'border-l-gray-200' },
+    { title: 'Open Stock Jobs', value: stats.openStockJobs, icon: Factory, onClick: () => navigate('/stock-jobs'), color: '', border: '' },
+    { title: "Today's Entries", value: stats.todayCount, icon: ClipboardList, onClick: () => navigate('/entries'), color: '', border: '' },
+    { title: "Today's Output", value: stats.todayOutput, icon: Package, onClick: () => navigate('/reports'), color: '', border: '' },
+    { title: "Today's Cost", value: `₹${stats.todayCost.toFixed(0)}`, icon: DollarSign, onClick: () => navigate('/reports'), color: '', border: '' },
+    { title: 'Pending POs', value: stats.pendingPOs, icon: ShoppingCart, onClick: () => navigate('/purchase-orders'), color: '', border: '' },
+    { title: 'Low Stock Items', value: stats.lowStockItems, icon: Warehouse, onClick: () => navigate('/inventory'), color: stats.lowStockItems > 0 ? 'text-red-600' : 'text-muted-foreground', border: stats.lowStockItems > 0 ? 'border-l-red-500' : '' },
+    { title: "Today's Dispatches", value: stats.todayDispatches, icon: Truck, onClick: () => navigate('/dispatch'), color: '', border: '' },
   ];
 
   const overallPct = stats.totalOrdered > 0 ? (stats.totalProduced / stats.totalOrdered) * 100 : 0;
@@ -130,7 +130,7 @@ function DashboardContent() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         {cards.map(c => (
-          <Card key={c.title} className="cursor-pointer hover:shadow-sm transition-shadow border" onClick={c.onClick}>
+          <Card key={c.title} className={`cursor-pointer hover:shadow-sm transition-shadow border border-l-4 ${c.border || ''}`} onClick={c.onClick}>
             <CardContent className="pt-3 pb-2.5 px-3">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[10px] text-muted-foreground leading-tight">{c.title}</span>

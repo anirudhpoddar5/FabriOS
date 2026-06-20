@@ -37,6 +37,15 @@ const QUICK_DATES = [
   { label: 'Last month', fn: () => { const d = new Date(); d.setMonth(d.getMonth()-1); const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const last = new Date(y, d.getMonth()+1, 0).getDate(); return { from: `${y}-${m}-01`, to: `${y}-${m}-${last}` }; }},
 ];
 
+function getOrderHealth(order: any, entries: any[], today: string): 'on-time' | 'delayed' | 'not-started' | 'wip' {
+  if (order.status === 'Completed' || order.status === 'Shipped') return 'on-time';
+  if (order.status === 'Cancelled') return 'on-time';
+  const orderEntries = entries.filter((e: any) => e.orderId === order.id);
+  if (orderEntries.length === 0) return 'not-started';
+  if (order.targetEndDate && order.targetEndDate < today) return 'delayed';
+  return 'wip';
+}
+
 export default function ReportsPage() {
   const { data } = useData();
   const { profile, currentModule } = useAuth();
@@ -177,7 +186,8 @@ export default function ReportsPage() {
       const produced = data.entries.filter((e: any) => e.orderId === o.id && e.colourwayId === c.id).reduce((s: number, e: any) => s + e.outputQty, 0);
       const dispatched = dispatches.filter((d: any) => d.order_id === o.id).reduce((s: number, d: any) => s + Number(d.qty), 0);
       const pct = c.orderedQty > 0 ? (produced / c.orderedQty) * 100 : 0;
-      const isDelayed = o.status === 'Started' && o.targetEndDate && o.targetEndDate < todayStr;
+      const health = getOrderHealth(o, data.entries, todayStr);
+      const isDelayed = health === 'delayed';
       return { module: o.module, buyer: lookup.buyer(o.buyerId), style: o.style, po: o.internalPO, colour: c.colourName, ordered: c.orderedQty, produced, dispatched, balanceProd: c.orderedQty - produced, balanceShip: produced - dispatched, pct, target: o.targetEndDate, status: o.status, isDelayed };
     });
   }), [allOrders, allColourways, data.entries, dispatches, lookup, todayStr]);
@@ -213,16 +223,18 @@ export default function ReportsPage() {
   const consumptionData = useMemo(() => {
     return bomLines.map((line: any) => {
       const bom = bomHeaders.find((b: any) => b.id === line.bom_id);
-      const plannedQty = Number(line.quantity) * (1 + (Number(line.extra_pct) || 0) / 100);
-      // Find consumption from stock transactions linked to same order
-      const consumed = stockTxns
-        .filter((t: any) => t.txn_type === 'outward' && bom?.order_id && t.order_id === bom.order_id)
-        .reduce((s: number, t: any) => s + Number(t.qty), 0);
+      const plannedQty = Number(line.quantity ?? 0) * (1 + (Number(line.extra_pct) || 0) / 100);
+      const bomOrderId = bom?.order_id;
+      const consumed = bomOrderId
+        ? stockTxns
+            .filter((t: any) => t.txn_type === 'outward' && t.order_id === bomOrderId)
+            .reduce((s: number, t: any) => s + Number(t.qty ?? 0), 0)
+        : 0;
       return {
         bomTitle: bom?.title || '-',
-        orderRef: bom?.order_id ? lookup.orderPO(bom.order_id) : '-',
-        item: line.item_name,
-        category: line.category,
+        orderRef: bomOrderId ? lookup.orderPO(bomOrderId) : '-',
+        item: line.item_name || '-',
+        category: line.category || '-',
         planned: Math.round(plannedQty * 100) / 100,
         consumed,
         balance: Math.round((plannedQty - consumed) * 100) / 100,
@@ -235,7 +247,8 @@ export default function ReportsPage() {
   // Profit/Loss by order
   const profitLossData = useMemo(() => allOrders.map((o: any) => {
     const orderCost = data.entries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + e.costAmount, 0);
-    const qty = o.orderQty || 0;
+    const cws = allColourways.filter((c: any) => c.orderId === o.id);
+    const qty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0) || o.orderQty || 0;
     const rate = o.ratePerItem || 0;
     const revenue = qty * rate;
     const profit = revenue - orderCost;
@@ -244,7 +257,7 @@ export default function ReportsPage() {
       module: o.module, po: o.internalPO, buyer: lookup.buyer(o.buyerId), style: o.style,
       qty, rate: rate, revenue, cost: orderCost, profit, margin, status: o.status,
     };
-  }), [allOrders, data.entries, lookup]);
+  }), [allOrders, allColourways, data.entries, lookup]);
 
   // Monthly production trend
   const monthlyTrend = useMemo(() => {
@@ -267,8 +280,10 @@ export default function ReportsPage() {
       const buyerName = lookup.buyer(o.buyerId);
       if (!map[buyerName]) map[buyerName] = { name: buyerName, orders: 0, orderedQty: 0, dispatchedQty: 0, revenue: 0 };
       map[buyerName].orders += 1;
-      map[buyerName].orderedQty += o.orderQty || 0;
-      map[buyerName].revenue += (o.orderQty || 0) * (o.ratePerItem || 0);
+      const cws = allColourways.filter((c: any) => c.orderId === o.id);
+      const orderQty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0) || o.orderQty || 0;
+      map[buyerName].orderedQty += orderQty;
+      map[buyerName].revenue += orderQty * (o.ratePerItem || 0);
     });
     dispatches.forEach((d: any) => {
       const buyerName = (d as any).buyers?.name || '-';
@@ -276,7 +291,7 @@ export default function ReportsPage() {
       map[buyerName].dispatchedQty += Number(d.qty) || 0;
     });
     return Object.values(map).sort((a, b) => b.revenue - a.revenue);
-  }, [allOrders, dispatches, lookup]);
+  }, [allOrders, allColourways, dispatches, lookup]);
 
   // Operator productivity
   const operatorProductivity = useMemo(() => {

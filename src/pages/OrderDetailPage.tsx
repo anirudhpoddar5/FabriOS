@@ -7,27 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Package, DollarSign, TrendingUp, Calendar, AlertTriangle } from 'lucide-react';
-import { OrderStatus } from '@/types';
-
-const statusColors: Record<OrderStatus, string> = {
-  Started: 'status-started',
-  Completed: 'status-completed',
-  Cancelled: 'status-cancelled',
-  Shipped: 'status-shipped',
-};
-
-function deriveStatus(produced: number, ordered: number, targetEnd: string, storedStatus: OrderStatus): { label: string; color: string } {
-  if (storedStatus === 'Cancelled') return { label: 'Cancelled', color: 'bg-muted text-muted-foreground' };
-  if (storedStatus === 'Shipped') return { label: 'Shipped', color: 'bg-info/20 text-info' };
-  if (ordered <= 0) return { label: storedStatus, color: 'bg-muted text-muted-foreground' };
-  const pct = (produced / ordered) * 100;
-  if (pct === 0) return { label: 'Not Started', color: 'bg-muted text-muted-foreground' };
-  if (pct > 100) return { label: 'Overproduced', color: 'bg-warning/20 text-warning' };
-  if (pct >= 100) return { label: 'Completed', color: 'bg-success/20 text-success' };
-  const today = new Date().toISOString().slice(0, 10);
-  if (targetEnd && targetEnd < today) return { label: 'Delayed', color: 'bg-destructive/20 text-destructive' };
-  return { label: 'In Progress', color: 'bg-primary/20 text-primary' };
-}
+import { getOrderBadge } from '@/lib/order-status';
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -93,7 +73,7 @@ export default function OrderDetailPage() {
   const totalProduced = entries.reduce((s, e) => s + e.outputQty, 0);
   const totalCost = entries.reduce((s, e) => s + e.costAmount, 0);
   const progressPct = totalOrdered > 0 ? Math.min((totalProduced / totalOrdered) * 100, 100) : 0;
-  const derivedStatus = deriveStatus(totalProduced, totalOrdered, order.targetEndDate, order.status);
+  const derivedStatus = getOrderBadge(order.status, entries.length, order.targetEndDate);
 
   const colourwayStats = colourways.map(cw => {
     const cwEntries = entries.filter(e => e.colourwayId === cw.id);
@@ -166,7 +146,7 @@ export default function OrderDetailPage() {
             <div className="flex justify-between"><span className="text-muted-foreground">Fabric</span><span>{fabricName}</span></div>
             {isPrinting && (order as any).fabricWidth && <div className="flex justify-between"><span className="text-muted-foreground">Width</span><span>{(order as any).fabricWidth}</span></div>}
             <div className="flex justify-between"><span className="text-muted-foreground">UOM</span><span>{order.uom}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge className={`text-[10px] ${statusColors[order.status]}`}>{order.status}</Badge></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge className={`text-[10px] ${derivedStatus.className}`}>{derivedStatus.label}</Badge></div>
           </CardContent>
         </Card>
         <Card>

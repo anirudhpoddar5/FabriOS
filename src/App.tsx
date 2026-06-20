@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -88,6 +88,7 @@ function AppRoutes() {
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="/settings/companies" element={<CompaniesPage />} />
             <Route path="/settings/factories-shifts" element={<FactoriesShiftsPage />} />
             <Route path="/settings/workers-rates" element={<WorkersRatesPage />} />

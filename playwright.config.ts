@@ -17,12 +17,21 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: /auth\.setup\.ts/,
+      testIgnore: /auth\.setup\.ts|steelman-e2e\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.auth/user.json',
       },
       dependencies: ['setup'],
+    },
+    {
+      name: 'steelman',
+      testMatch: /steelman-e2e\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: false,
+      },
+      dependencies: [],
     },
   ],
 

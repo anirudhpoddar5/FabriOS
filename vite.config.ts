@@ -27,9 +27,6 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('@supabase')) return 'supabase';
           if (id.includes('@tanstack')) return 'tanstack';
           if (id.includes('lucide-react')) return 'icons';
-          if (id.includes('@radix-ui') || id.includes('cmdk') || id.includes('sonner') || id.includes('vaul')) return 'ui';
-          if (id.includes('react-router-dom') || id.includes('react-router') || id.includes('@remix-run')) return 'router';
-          if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) return 'react';
           return 'vendor';
         },
       },

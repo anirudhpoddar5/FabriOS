@@ -105,19 +105,6 @@
 }
 
 @layer components {
-  .status-started {
-    @apply bg-info/10 text-info border border-info/20;
-  }
-  .status-completed {
-    @apply bg-success/10 text-success border border-success/20;
-  }
-  .status-cancelled {
-    @apply bg-destructive/10 text-destructive border border-destructive/20;
-  }
-  .status-shipped {
-    @apply bg-foreground/10 text-foreground border border-foreground/20;
-  }
-
   /* Mobile-friendly form utilities */
   @media (max-width: 640px) {
     .dialog-form-grid {
