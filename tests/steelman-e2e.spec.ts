@@ -219,9 +219,9 @@ test('02 — Master data (factories, shifts, workers, rates, buyers, fabrics, pr
   await clickButton(page, 'Add');
   await expect(page.getByRole('dialog')).toBeVisible();
   await fillField(page, 'Fabric Name *', 'Cotton Canvas');
-  await page.waitForTimeout(200);
+  await page.waitForTimeout(300);
   await clickButton(page, /save/i);
-  await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 15_000 });
 
   const { data: fabrics } = await admin.from('fabrics').insert([
     { company_id: companyId, name: 'Polyester Silk', short_form: 'POLY', is_active: true },
@@ -349,7 +349,7 @@ test('03 — Printing & Stitching orders with colourways', async ({ browser }) =
   const { data: stitchProds } = await admin.from('stitching_products').select('id').eq('company_id', companyId);
   if (!buyers?.length || !fabrics?.length) throw new Error('Missing ref data');
 
-  // ── UI: 2 printing orders ──
+  // ── UI: 2 printing orders (multi-row) ──
   for (let run = 0; run < 2; run++) {
     await goto(page, `${BASE}/printing-orders`);
     await expect(page.getByRole('heading', { name: /printing orders/i })).toBeVisible();
@@ -359,21 +359,32 @@ test('03 — Printing & Stitching orders with colourways', async ({ browser }) =
     const style = `STY-UI-${Date.now()}-${run}`;
     await selectOption(page, 'Buyer *', new RegExp(buyers[0].code));
     await fillField(page, 'Style *', style);
-    await selectOption(page, 'Fabric *', new RegExp(fabrics[0].name || 'Canvas'));
-    await fillField(page, 'Order Qty', '1000');
-    await fillField(page, 'Chart Qty', '950');
-    await fillField(page, 'Rate/Item', '5.50');
 
-    const cRows = page.locator('[role="dialog"] table tbody tr');
-    await cRows.first().locator('input').nth(0).fill('Red');
-    await cRows.first().locator('input[type="number"]').first().fill('500');
-    await clickButton(page, /add row/i); await page.waitForTimeout(200);
-    const r2 = page.locator('[role="dialog"] table tbody tr');
-    await r2.nth(1).locator('input').nth(0).fill('Blue');
-    await r2.nth(1).locator('input[type="number"]').first().fill('300');
-    await clickButton(page, /add row/i); await page.waitForTimeout(200);
-    await r2.nth(2).locator('input').nth(0).fill('Green');
-    await r2.nth(2).locator('input[type="number"]').first().fill('200');
+    // Row 1 — fill fields by label (targets first row)
+    const dialog = page.locator('[role="dialog"]');
+    await selectOption(page, 'Fabric *', new RegExp(fabrics[0].name || 'Canvas'));
+    const numInputs = dialog.locator('input[type="number"]');
+    await numInputs.nth(0).fill('1000');  // Order Qty
+    await numInputs.nth(1).fill('950');   // Chart Qty
+    await numInputs.nth(2).fill('5.50');  // Rate/Item
+
+    // Colourway table in Row 1 (first colourway exists by default)
+    const cwTbody = dialog.locator('table tbody').first();
+    const cwFirstRow = cwTbody.locator('tr').first();
+    await cwFirstRow.locator('input').nth(0).fill('Red');
+    await cwFirstRow.locator('input[type="number"]').first().fill('500');
+
+    // Add 2nd + 3rd colourways to Row 1
+    for (const cw of ['Blue', 'Green']) {
+      await dialog.locator('button:has-text("Add Colour")').first().click();
+      await page.waitForTimeout(300);
+    }
+    const cwAll = cwTbody.locator('tr');
+    await cwAll.nth(1).locator('input').nth(0).fill('Blue');
+    await cwAll.nth(1).locator('input[type="number"]').first().fill('300');
+    await cwAll.nth(2).locator('input').nth(0).fill('Green');
+    await cwAll.nth(2).locator('input[type="number"]').first().fill('200');
+
     await clickButton(page, /save order/i);
     await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 15_000 });
   }
