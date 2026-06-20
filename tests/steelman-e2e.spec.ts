@@ -617,3 +617,64 @@ test('05 — Verify every page renders without errors', async ({ browser }) => {
 
   await page.close();
 });
+
+// ─────────────────────────────────────────────────────────────
+// TEST 6: Invited user can sign in and access the app
+// ─────────────────────────────────────────────────────────────
+test('06 — Invited user can sign in and use the app', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const admin = getSupabaseAdmin();
+
+  const { data: profileForInvite } = await admin.from('profiles').select('company_id').eq('email', TEST_EMAIL).single();
+  const companyId = profileForInvite?.company_id;
+  if (!companyId) throw new Error('No company for test user');
+
+  const inviteEmail = `invited-e2e-${Date.now()}@fabrios-test.com`;
+  const invitePass = 'TestInvite123!';
+
+  const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
+    email: inviteEmail,
+    password: invitePass,
+    email_confirm: true,
+    user_metadata: { display_name: 'E2E Invited User', company_id: companyId },
+  });
+  if (createErr) throw new Error(`Create invited user failed: ${createErr.message}`);
+  const invitedUserId = newUser!.user.id;
+
+  await admin.from('profiles').update({
+    company_id: companyId,
+    approval_status: 'approved',
+    display_name: 'E2E Invited User',
+  }).eq('user_id', invitedUserId);
+  console.log('✅ Invited user created + approved');
+
+  const page = await browser.newPage();
+  try {
+    await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.waitForTimeout(2000);
+    await page.getByPlaceholder('you@company.com').fill(inviteEmail);
+    await page.getByPlaceholder('••••••••').fill(invitePass);
+    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.waitForTimeout(3000);
+
+    console.log('Invited user URL:', page.url());
+
+    if (await page.getByText('Select your workspace').isVisible({ timeout: 5000 }).catch(() => false)) {
+      await page.getByText('Both').first().click();
+      await page.waitForTimeout(1000);
+    }
+
+    await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.waitForTimeout(2000);
+    const body = await page.locator('body').innerText().catch(() => '');
+    expect(body).not.toContain('Application error');
+    expect(body).not.toContain('pending approval');
+    expect(body).not.toContain('Sign in');
+    console.log('✅ Invited user can access dashboard');
+  } finally {
+    await page.close();
+  }
+
+  await admin.auth.admin.deleteUser(invitedUserId);
+  console.log('✅ Cleaned up invited user');
+});
