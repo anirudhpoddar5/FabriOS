@@ -1,0 +1,23 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "fabriOS" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Production OS for Print & Stitch
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - heading "Sign in" [level=2] [ref=e10]
+        - paragraph [ref=e11]: Enter your credentials to continue
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - text: Email
+          - textbox "you@company.com" [ref=e15]
+        - generic [ref=e16]:
+          - text: Password
+          - textbox "••••••••" [ref=e17]
+        - button "Sign in" [ref=e18] [cursor=pointer]
+        - generic [ref=e19]:
+          - button "Forgot password?" [ref=e20] [cursor=pointer]
+          - button "Create account" [ref=e21] [cursor=pointer]

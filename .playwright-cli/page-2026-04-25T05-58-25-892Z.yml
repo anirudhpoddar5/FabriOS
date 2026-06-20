@@ -1,0 +1,175 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e4]:
+    - generic [ref=e9]:
+      - list [ref=e12]:
+        - listitem [ref=e13]:
+          - link "Dashboard" [ref=e14] [cursor=pointer]:
+            - /url: /
+            - img [ref=e15]
+            - generic [ref=e20]: Dashboard
+      - generic [ref=e21]:
+        - generic [ref=e22]: Orders
+        - list [ref=e24]:
+          - listitem [ref=e25]:
+            - link "Printing Orders" [ref=e26] [cursor=pointer]:
+              - /url: /printing-orders
+              - img [ref=e27]
+              - generic [ref=e31]: Printing Orders
+          - listitem [ref=e32]:
+            - link "Stitching Orders" [ref=e33] [cursor=pointer]:
+              - /url: /stitching-orders
+              - img [ref=e34]
+              - generic [ref=e40]: Stitching Orders
+          - listitem [ref=e41]:
+            - link "Stock Jobs" [ref=e42] [cursor=pointer]:
+              - /url: /stock-jobs
+              - img [ref=e43]
+              - generic [ref=e46]: Stock Jobs
+      - generic [ref=e47]:
+        - generic [ref=e48]: Production
+        - list [ref=e50]:
+          - listitem [ref=e51]:
+            - link "Entries" [ref=e52] [cursor=pointer]:
+              - /url: /entries
+              - img [ref=e53]
+              - generic [ref=e56]: Entries
+          - listitem [ref=e57]:
+            - link "Control" [ref=e58] [cursor=pointer]:
+              - /url: /production-control
+              - img [ref=e59]
+              - generic [ref=e62]: Control
+          - listitem [ref=e63]:
+            - link "Dispatch" [ref=e64] [cursor=pointer]:
+              - /url: /dispatch
+              - img [ref=e65]
+              - generic [ref=e70]: Dispatch
+          - listitem [ref=e71]:
+            - link "Reports" [ref=e72] [cursor=pointer]:
+              - /url: /reports
+              - img [ref=e73]
+              - generic [ref=e75]: Reports
+      - generic [ref=e76]:
+        - generic [ref=e77]: Inventory
+        - list [ref=e79]:
+          - listitem [ref=e80]:
+            - link "Stock" [ref=e81] [cursor=pointer]:
+              - /url: /inventory
+              - img [ref=e82]
+              - generic [ref=e85]: Stock
+      - generic [ref=e86]:
+        - generic [ref=e87]: Procurement
+        - list [ref=e89]:
+          - listitem [ref=e90]:
+            - link "BOM" [ref=e91] [cursor=pointer]:
+              - /url: /bom
+              - img [ref=e92]
+              - generic [ref=e95]: BOM
+          - listitem [ref=e96]:
+            - link "Purchase Orders" [ref=e97] [cursor=pointer]:
+              - /url: /purchase-orders
+              - img [ref=e98]
+              - generic [ref=e102]: Purchase Orders
+          - listitem [ref=e103]:
+            - link "GRN / Inward" [ref=e104] [cursor=pointer]:
+              - /url: /grn
+              - img [ref=e105]
+              - generic [ref=e110]: GRN / Inward
+      - generic [ref=e112]:
+        - button "Settings" [expanded] [ref=e113] [cursor=pointer]:
+          - generic [ref=e114]:
+            - img [ref=e115]
+            - text: Settings
+          - img [ref=e118]
+        - list [ref=e122]:
+          - listitem [ref=e123]:
+            - link "Companies" [ref=e124] [cursor=pointer]:
+              - /url: /settings/companies
+              - img [ref=e125]
+              - generic [ref=e129]: Companies
+          - listitem [ref=e130]:
+            - link "Factories & Shifts" [ref=e131] [cursor=pointer]:
+              - /url: /settings/factories-shifts
+              - img [ref=e132]
+              - generic [ref=e134]: Factories & Shifts
+          - listitem [ref=e135]:
+            - link "Workers & Rates" [ref=e136] [cursor=pointer]:
+              - /url: /settings/workers-rates
+              - img [ref=e137]
+              - generic [ref=e142]: Workers & Rates
+          - listitem [ref=e143]:
+            - link "Buyers" [ref=e144] [cursor=pointer]:
+              - /url: /settings/buyers
+              - img [ref=e145]
+              - generic [ref=e149]: Buyers
+          - listitem [ref=e150]:
+            - link "Fabrics" [ref=e151] [cursor=pointer]:
+              - /url: /settings/fabrics
+              - img [ref=e152]
+              - generic [ref=e154]: Fabrics
+          - listitem [ref=e155]:
+            - link "Printing Tables" [ref=e156] [cursor=pointer]:
+              - /url: /settings/printing-tables
+              - img [ref=e157]
+              - generic [ref=e159]: Printing Tables
+          - listitem [ref=e160]:
+            - link "Stitching Lines" [ref=e161] [cursor=pointer]:
+              - /url: /settings/stitching-lines
+              - img [ref=e162]
+              - generic [ref=e164]: Stitching Lines
+          - listitem [ref=e165]:
+            - link "Printing Products" [ref=e166] [cursor=pointer]:
+              - /url: /settings/printing-products
+              - img [ref=e167]
+              - generic [ref=e170]: Printing Products
+          - listitem [ref=e171]:
+            - link "Stitching Products" [ref=e172] [cursor=pointer]:
+              - /url: /settings/stitching-products
+              - img [ref=e173]
+              - generic [ref=e177]: Stitching Products
+          - listitem [ref=e178]:
+            - link "Vendors" [ref=e179] [cursor=pointer]:
+              - /url: /settings/vendors
+              - img [ref=e180]
+              - generic [ref=e185]: Vendors
+          - listitem [ref=e186]:
+            - link "Users" [ref=e187] [cursor=pointer]:
+              - /url: /settings/users
+              - img [ref=e188]
+              - generic [ref=e193]: Users
+    - generic [ref=e194]:
+      - banner [ref=e195]:
+        - generic [ref=e196]:
+          - button "Toggle Sidebar" [ref=e197] [cursor=pointer]:
+            - img
+            - generic [ref=e198]: Toggle Sidebar
+          - generic [ref=e199]: fabriOS
+          - generic [ref=e200] [cursor=pointer]:
+            - img [ref=e201]
+            - text: Both
+        - button "Sign out" [ref=e206] [cursor=pointer]:
+          - img
+      - main [ref=e207]:
+        - generic [ref=e208]:
+          - generic [ref=e209]:
+            - heading "Factories & Shifts" [level=1] [ref=e210]
+            - button "Add Factory" [ref=e211] [cursor=pointer]:
+              - img
+              - text: Add Factory
+          - generic [ref=e213]:
+            - img [ref=e214]
+            - textbox "Search factories..." [ref=e217]
+          - table [ref=e220]:
+            - rowgroup [ref=e221]:
+              - row "Code Name Type Status Shifts" [ref=e222]:
+                - columnheader "Code" [ref=e223]
+                - columnheader "Name" [ref=e224]
+                - columnheader "Type" [ref=e225]
+                - columnheader "Status" [ref=e226]
+                - columnheader "Shifts" [ref=e227]
+                - columnheader [ref=e228]
+            - rowgroup [ref=e229]:
+              - row "No factories" [ref=e230]:
+                - cell "No factories" [ref=e231]

@@ -1,0 +1,124 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e4]:
+    - generic [ref=e9]:
+      - list [ref=e12]:
+        - listitem [ref=e13]:
+          - link "Dashboard" [ref=e14] [cursor=pointer]:
+            - /url: /
+            - img [ref=e15]
+            - generic [ref=e20]: Dashboard
+      - generic [ref=e21]:
+        - generic [ref=e22]: Orders
+        - list [ref=e24]:
+          - listitem [ref=e25]:
+            - link "Printing Orders" [ref=e26] [cursor=pointer]:
+              - /url: /printing-orders
+              - img [ref=e27]
+              - generic [ref=e31]: Printing Orders
+          - listitem [ref=e32]:
+            - link "Stitching Orders" [ref=e33] [cursor=pointer]:
+              - /url: /stitching-orders
+              - img [ref=e34]
+              - generic [ref=e40]: Stitching Orders
+          - listitem [ref=e41]:
+            - link "Stock Jobs" [ref=e42] [cursor=pointer]:
+              - /url: /stock-jobs
+              - img [ref=e43]
+              - generic [ref=e46]: Stock Jobs
+      - generic [ref=e47]:
+        - generic [ref=e48]: Production
+        - list [ref=e50]:
+          - listitem [ref=e51]:
+            - link "Entries" [ref=e52] [cursor=pointer]:
+              - /url: /entries
+              - img [ref=e53]
+              - generic [ref=e56]: Entries
+          - listitem [ref=e57]:
+            - link "Control" [ref=e58] [cursor=pointer]:
+              - /url: /production-control
+              - img [ref=e59]
+              - generic [ref=e62]: Control
+          - listitem [ref=e63]:
+            - link "Dispatch" [ref=e64] [cursor=pointer]:
+              - /url: /dispatch
+              - img [ref=e65]
+              - generic [ref=e70]: Dispatch
+          - listitem [ref=e71]:
+            - link "Reports" [ref=e72] [cursor=pointer]:
+              - /url: /reports
+              - img [ref=e73]
+              - generic [ref=e75]: Reports
+      - generic [ref=e76]:
+        - generic [ref=e77]: Inventory
+        - list [ref=e79]:
+          - listitem [ref=e80]:
+            - link "Stock" [ref=e81] [cursor=pointer]:
+              - /url: /inventory
+              - img [ref=e82]
+              - generic [ref=e85]: Stock
+      - generic [ref=e86]:
+        - generic [ref=e87]: Procurement
+        - list [ref=e89]:
+          - listitem [ref=e90]:
+            - link "BOM" [ref=e91] [cursor=pointer]:
+              - /url: /bom
+              - img [ref=e92]
+              - generic [ref=e95]: BOM
+          - listitem [ref=e96]:
+            - link "Purchase Orders" [ref=e97] [cursor=pointer]:
+              - /url: /purchase-orders
+              - img [ref=e98]
+              - generic [ref=e102]: Purchase Orders
+          - listitem [ref=e103]:
+            - link "GRN / Inward" [ref=e104] [cursor=pointer]:
+              - /url: /grn
+              - img [ref=e105]
+              - generic [ref=e110]: GRN / Inward
+      - button "Settings" [ref=e113] [cursor=pointer]:
+        - generic [ref=e114]:
+          - img [ref=e115]
+          - text: Settings
+        - img [ref=e118]
+    - generic [ref=e120]:
+      - banner [ref=e121]:
+        - generic [ref=e122]:
+          - button "Toggle Sidebar" [ref=e123] [cursor=pointer]:
+            - img
+            - generic [ref=e124]: Toggle Sidebar
+          - generic [ref=e125]: fabriOS
+          - generic [ref=e126] [cursor=pointer]:
+            - img [ref=e127]
+            - text: Both
+        - button "Sign out" [ref=e132] [cursor=pointer]:
+          - img
+      - main [ref=e133]:
+        - generic [ref=e134]:
+          - generic [ref=e135]:
+            - heading "Dispatch & Shipping" [level=1] [ref=e136]
+            - generic [ref=e137]:
+              - button "Export" [ref=e138] [cursor=pointer]:
+                - img
+                - text: Export
+              - button "New Dispatch" [ref=e139] [cursor=pointer]:
+                - img
+                - text: New Dispatch
+          - generic [ref=e140]:
+            - img [ref=e141]
+            - textbox "Search dispatches..." [ref=e144]
+          - table [ref=e148]:
+            - rowgroup [ref=e149]:
+              - row "Date Buyer Type Product Colour Qty Challan" [ref=e150]:
+                - columnheader "Date" [ref=e151]
+                - columnheader "Buyer" [ref=e152]
+                - columnheader "Type" [ref=e153]
+                - columnheader "Product" [ref=e154]
+                - columnheader "Colour" [ref=e155]
+                - columnheader "Qty" [ref=e156]
+                - columnheader "Challan" [ref=e157]
+                - columnheader [ref=e158]
+            - rowgroup [ref=e159]:
+              - row "No dispatches recorded" [ref=e160]:
+                - cell "No dispatches recorded" [ref=e161]

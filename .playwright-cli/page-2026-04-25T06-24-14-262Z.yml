@@ -1,0 +1,258 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - list:
+                      - listitem:
+                        - link:
+                          - /url: /
+                          - img
+                          - generic: Dashboard
+                - generic:
+                  - generic: Orders
+                  - generic:
+                    - list:
+                      - listitem:
+                        - link:
+                          - /url: /printing-orders
+                          - img
+                          - generic: Printing Orders
+                      - listitem:
+                        - link:
+                          - /url: /stitching-orders
+                          - img
+                          - generic: Stitching Orders
+                      - listitem:
+                        - link:
+                          - /url: /stock-jobs
+                          - img
+                          - generic: Stock Jobs
+                - generic:
+                  - generic: Production
+                  - generic:
+                    - list:
+                      - listitem:
+                        - link:
+                          - /url: /entries
+                          - img
+                          - generic: Entries
+                      - listitem:
+                        - link:
+                          - /url: /production-control
+                          - img
+                          - generic: Control
+                      - listitem:
+                        - link:
+                          - /url: /dispatch
+                          - img
+                          - generic: Dispatch
+                      - listitem:
+                        - link:
+                          - /url: /reports
+                          - img
+                          - generic: Reports
+                - generic:
+                  - generic: Inventory
+                  - generic:
+                    - list:
+                      - listitem:
+                        - link:
+                          - /url: /inventory
+                          - img
+                          - generic: Stock
+                - generic:
+                  - generic: Procurement
+                  - generic:
+                    - list:
+                      - listitem:
+                        - link:
+                          - /url: /bom
+                          - img
+                          - generic: BOM
+                      - listitem:
+                        - link:
+                          - /url: /purchase-orders
+                          - img
+                          - generic: Purchase Orders
+                      - listitem:
+                        - link:
+                          - /url: /grn
+                          - img
+                          - generic: GRN / Inward
+                - generic:
+                  - generic:
+                    - button:
+                      - generic:
+                        - img
+                        - text: Settings
+                      - img
+        - generic:
+          - banner:
+            - generic:
+              - button:
+                - img
+                - generic: Toggle Sidebar
+              - generic: fabriOS
+              - generic:
+                - img
+                - text: Both
+            - generic:
+              - combobox:
+                - img
+                - generic: as
+                - img
+              - generic: Ap
+              - button:
+                - img
+          - main:
+            - generic:
+              - generic:
+                - heading [level=1]: Printing Orders
+                - button:
+                  - img
+                  - text: New Order
+              - generic:
+                - generic:
+                  - img
+                  - textbox:
+                    - /placeholder: Search orders...
+                - combobox:
+                  - generic: All Status
+                  - img
+                - combobox:
+                  - generic: All Buyers
+                  - img
+                - generic: 1 orders
+              - generic:
+                - generic:
+                  - table:
+                    - rowgroup:
+                      - row:
+                        - columnheader: Internal PO
+                        - columnheader: Buyer
+                        - columnheader: Style
+                        - columnheader: Fabric
+                        - columnheader: Qty
+                        - columnheader: Progress
+                        - columnheader: Status
+                        - columnheader
+                    - rowgroup:
+                      - row:
+                        - cell
+                        - cell: TB001 - Test Buyer
+                        - cell: Style B
+                        - cell
+                        - cell
+                        - cell:
+                          - generic:
+                            - progressbar
+                            - generic: 0%
+                        - cell:
+                          - generic: Started
+                        - cell:
+                          - button:
+                            - img
+  - dialog "New Printing Order" [ref=e189]:
+    - heading "New Printing Order" [level=2] [ref=e191]
+    - generic [ref=e192]:
+      - generic [ref=e193]:
+        - generic [ref=e194]:
+          - text: Internal PO
+          - textbox [active] [ref=e195]: PO-P-0002
+        - generic [ref=e196]:
+          - text: Buyer PO
+          - textbox [ref=e197]
+      - generic [ref=e198]:
+        - generic [ref=e199]:
+          - text: Buyer *
+          - combobox [ref=e200] [cursor=pointer]:
+            - generic: Select buyer
+            - img [ref=e201]
+        - generic [ref=e203]:
+          - text: Style *
+          - textbox [ref=e204]
+      - generic [ref=e205]:
+        - generic [ref=e206]:
+          - text: Fabric *
+          - combobox [ref=e207] [cursor=pointer]:
+            - generic: Select fabric
+            - img [ref=e208]
+        - generic [ref=e210]:
+          - text: Width
+          - textbox [ref=e211]
+        - generic [ref=e212]:
+          - text: UOM
+          - textbox [ref=e213]: meters
+      - generic [ref=e214]:
+        - generic [ref=e215]:
+          - text: Order Qty
+          - spinbutton [ref=e216]
+        - generic [ref=e217]:
+          - text: Chart Qty
+          - spinbutton [ref=e218]
+        - generic [ref=e219]:
+          - text: Rate/Item
+          - spinbutton [ref=e220]
+        - generic [ref=e221]:
+          - text: Currency
+          - combobox [ref=e222] [cursor=pointer]:
+            - generic: USD
+            - img [ref=e223]
+      - generic [ref=e225]:
+        - generic [ref=e226]:
+          - text: Target End Date
+          - button "Pick a date" [ref=e227] [cursor=pointer]:
+            - img
+            - generic [ref=e228]: Pick a date
+        - generic [ref=e229]:
+          - text: Buyer Delivery Date
+          - button "Pick a date" [ref=e230] [cursor=pointer]:
+            - img
+            - generic [ref=e231]: Pick a date
+        - generic [ref=e232]:
+          - text: Status
+          - combobox [ref=e233] [cursor=pointer]:
+            - generic: Started
+            - img [ref=e234]
+      - generic [ref=e236]:
+        - text: Remarks
+        - textbox [ref=e237]
+      - generic [ref=e238]:
+        - generic [ref=e239]:
+          - generic [ref=e241]: Colourways
+          - button "Add Row" [ref=e242] [cursor=pointer]:
+            - img
+            - text: Add Row
+        - table [ref=e245]:
+          - rowgroup [ref=e246]:
+            - row "Colour Qty UOM Notes" [ref=e247]:
+              - columnheader "Colour" [ref=e248]
+              - columnheader "Qty" [ref=e249]
+              - columnheader "UOM" [ref=e250]
+              - columnheader "Notes" [ref=e251]
+              - columnheader [ref=e252]
+          - rowgroup [ref=e253]:
+            - row "meters" [ref=e254]:
+              - cell [ref=e255]:
+                - textbox [ref=e256]
+              - cell [ref=e257]:
+                - spinbutton [ref=e258]
+              - cell "meters" [ref=e259]:
+                - textbox [ref=e260]: meters
+              - cell [ref=e261]:
+                - textbox [ref=e262]
+              - cell [ref=e263]
+    - generic [ref=e264]:
+      - button "Cancel" [ref=e265] [cursor=pointer]
+      - button "Save Order" [ref=e266] [cursor=pointer]
+    - button "Close" [ref=e267] [cursor=pointer]:
+      - img [ref=e268]
+      - generic [ref=e271]: Close

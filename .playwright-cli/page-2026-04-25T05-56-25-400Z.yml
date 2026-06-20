@@ -1,0 +1,21 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e23]:
+    - generic [ref=e24]:
+      - heading "fabriOS" [level=1] [ref=e25]
+      - paragraph [ref=e26]: Select your workspace
+    - generic [ref=e27]:
+      - generic [ref=e29] [cursor=pointer]:
+        - img [ref=e31]
+        - heading "Printing" [level=2] [ref=e35]
+        - paragraph [ref=e36]: Manage printing orders, tables, and production
+      - generic [ref=e38] [cursor=pointer]:
+        - img [ref=e40]
+        - heading "Stitching" [level=2] [ref=e46]
+        - paragraph [ref=e47]: Manage stitching orders, lines, and production
+      - generic [ref=e49] [cursor=pointer]:
+        - img [ref=e51]
+        - heading "Both" [level=2] [ref=e55]
+        - paragraph [ref=e56]: Full access to printing and stitching

@@ -1,0 +1,18 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:8080",
+      "localStorage": [
+        {
+          "name": "fabrios_module",
+          "value": "both"
+        },
+        {
+          "name": "sb-ejebukxlwgwebjgdicyb-auth-token",
+          "value": "{\"access_token\":\"eyJhbGciOiJFUzI1NiIsImtpZCI6IjQyM2VlMzhhLWE3NTEtNGFkNi05Mzc5LWIzNzJlMWY4N2JhMCIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2VqZWJ1a3hsd2d3ZWJqZ2RpY3liLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiI3MzY2MTI4Zi05YWZmLTQ4NzAtODNiNy04NjA5YzlkZmZkODgiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzgxOTU5MzkxLCJpYXQiOjE3ODE5NTU3OTEsImVtYWlsIjoidGVzdEBmYWJyaW9zLWUyZS5jb20iLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImRpc3BsYXlfbmFtZSI6IkUyRSBUZXN0IFVzZXIiLCJlbWFpbCI6InRlc3RAZmFicmlvcy1lMmUuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwic3ViIjoiNzM2NjEyOGYtOWFmZi00ODcwLTgzYjctODYwOWM5ZGZmZDg4In0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6W3sibWV0aG9kIjoicGFzc3dvcmQiLCJ0aW1lc3RhbXAiOjE3ODE5NTU3OTF9XSwic2Vzc2lvbl9pZCI6IjlmM2E3YjIzLTQwZWUtNDUxYS1hYWJmLTZkYjMyODk5YTI2NSIsImlzX2Fub255bW91cyI6ZmFsc2V9.X3GaYhQKS_0fjwqDfxHgqgyOHFHcIrn_HpStBWnkfDCWiXg36F8sfCql3xOCe7e_ZNJmxw-n1UGLqve8G6Lsuw\",\"token_type\":\"bearer\",\"expires_in\":3600,\"expires_at\":1781959391,\"refresh_token\":\"mazvcnnotjck\",\"user\":{\"id\":\"7366128f-9aff-4870-83b7-8609c9dffd88\",\"aud\":\"authenticated\",\"role\":\"authenticated\",\"email\":\"test@fabrios-e2e.com\",\"email_confirmed_at\":\"2026-06-20T09:32:43.742361Z\",\"phone\":\"\",\"confirmed_at\":\"2026-06-20T09:32:43.742361Z\",\"last_sign_in_at\":\"2026-06-20T11:43:11.260088769Z\",\"app_metadata\":{\"provider\":\"email\",\"providers\":[\"email\"]},\"user_metadata\":{\"display_name\":\"E2E Test User\",\"email\":\"test@fabrios-e2e.com\",\"email_verified\":true,\"phone_verified\":false,\"sub\":\"7366128f-9aff-4870-83b7-8609c9dffd88\"},\"identities\":[{\"identity_id\":\"cc305966-e617-4d62-9d6e-18059d322978\",\"id\":\"7366128f-9aff-4870-83b7-8609c9dffd88\",\"user_id\":\"7366128f-9aff-4870-83b7-8609c9dffd88\",\"identity_data\":{\"display_name\":\"E2E Test User\",\"email\":\"test@fabrios-e2e.com\",\"email_verified\":false,\"phone_verified\":false,\"sub\":\"7366128f-9aff-4870-83b7-8609c9dffd88\"},\"provider\":\"email\",\"last_sign_in_at\":\"2026-06-20T09:32:43.737362Z\",\"created_at\":\"2026-06-20T09:32:43.737427Z\",\"updated_at\":\"2026-06-20T09:32:43.737427Z\",\"email\":\"test@fabrios-e2e.com\"}],\"created_at\":\"2026-06-20T09:32:43.706813Z\",\"updated_at\":\"2026-06-20T11:43:11.277937Z\",\"is_anonymous\":false},\"weak_password\":null}"
+        }
+      ]
+    }
+  ]
+}

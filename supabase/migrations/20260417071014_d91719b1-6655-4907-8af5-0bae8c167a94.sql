@@ -1,0 +1,1 @@
+ALTER TABLE public.order_headers ADD COLUMN IF NOT EXISTS buyer_p_o text;
