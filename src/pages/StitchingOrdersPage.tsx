@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Progress } from '../components/ui/progress';
-import { Search, Plus, Pencil, Trash2, GripVertical, AlertTriangle, Printer } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, GripVertical, AlertTriangle, Printer, CheckSquare, X } from 'lucide-react';
 import DataTablePagination from '../components/DataTablePagination';
 import { usePagination } from '../hooks/use-pagination';
 import { toast } from 'sonner';
@@ -60,6 +60,7 @@ export default function StitchingOrdersPage() {
   const [form, setForm] = useState<any>({});
   const [rows, setRows] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [searchParams] = useSearchParams();
 
@@ -398,6 +399,63 @@ export default function StitchingOrdersPage() {
     }
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pagination.pageItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pagination.pageItems.map(o => o.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} orders?`)) return;
+    setSaving(true);
+    try {
+      for (const id of selectedIds) {
+        const { data: rowIds } = await supabase.from('order_rows').select('id').eq('order_id', id);
+        const rl = (rowIds || []).map(r => r.id);
+        if (rl.length > 0) {
+          await supabase.from('order_colourways').delete().in('order_row_id', rl);
+          await supabase.from('order_rows').delete().in('id', rl);
+        }
+        await supabase.from('order_headers').delete().eq('id', id);
+      }
+      await refreshData();
+      setSelectedIds(new Set());
+      toast.success(`${selectedIds.size} order(s) deleted`);
+    } catch (err: any) {
+      toast.error(`Bulk delete failed: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBulkStatus = async (status: string) => {
+    if (selectedIds.size === 0) return;
+    setSaving(true);
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('order_headers').update({ status }).eq('id', id);
+      }
+      await refreshData();
+      setSelectedIds(new Set());
+      toast.success(`${selectedIds.size} order(s) updated to ${status}`);
+    } catch (err: any) {
+      toast.error(`Bulk update failed: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -445,9 +503,34 @@ export default function StitchingOrdersPage() {
         </div>
         <span className="text-xs text-muted-foreground">{sorted.length} {sorted.length === 1 ? 'order' : 'orders'}</span>
       </div>
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-primary/5 rounded-md border">
+          <CheckSquare className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <Select value="" onValueChange={v => { handleBulkStatus(v); }}>
+            <SelectTrigger className="h-8 text-xs w-[140px]"><SelectValue placeholder="Change status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Started">Started</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
+              <SelectItem value="Cancelled">Cancelled</SelectItem>
+              <SelectItem value="Shipped">Shipped</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={handleBulkDelete}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 w-8 ml-auto" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       <div className="border rounded-md overflow-x-auto">
         <Table>
           <TableHeader><TableRow>
+            <TableHead className="text-xs h-9 w-8">
+              <input type="checkbox" className="accent-primary" checked={selectedIds.size === pagination.pageItems.length && pagination.pageItems.length > 0}
+                onChange={toggleSelectAll} />
+            </TableHead>
             <TableHead className="text-xs h-9">Internal PO</TableHead>
             <TableHead className="text-xs h-9">Buyer</TableHead>
             <TableHead className="text-xs h-9">Style</TableHead>
@@ -458,11 +541,11 @@ export default function StitchingOrdersPage() {
           </TableRow></TableHeader>
           <TableBody>
             {sorted.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">No orders found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">No orders found</TableCell></TableRow>
             ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
               <Fragment key={monthKey}>
                 <TableRow className="bg-muted/30">
-                  <TableCell colSpan={7} className="text-[11px] font-semibold py-1.5 px-3">
+                  <TableCell colSpan={8} className="text-[11px] font-semibold py-1.5 px-3">
                     {monthKey === '__no_date__' ? 'No Delivery Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                     <span className="text-muted-foreground font-normal ml-2">({group.items.length} orders, {group.qty} qty)</span>
                   </TableCell>
@@ -470,7 +553,10 @@ export default function StitchingOrdersPage() {
                 {group.items.map(o => {
                   const prog = getProgress(o.id);
                   return (
-                    <TableRow key={o.id} className="cursor-pointer hover:bg-accent/50" onClick={() => navigate(`/stitching-orders/${o.id}`)}>
+                    <TableRow key={o.id} className={selectedIds.has(o.id) ? 'bg-primary/5' : 'cursor-pointer hover:bg-accent/50'} onClick={() => navigate(`/stitching-orders/${o.id}`)}>
+                      <TableCell className="py-2 px-2" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" className="accent-primary" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} />
+                      </TableCell>
                       <TableCell className="text-sm py-2 font-mono">{o.internalPO ?? '—'}</TableCell>
                       <TableCell className="text-sm py-2">{getBuyer(o.buyerId)}</TableCell>
                       <TableCell className="text-sm py-2">{o.style}</TableCell>
@@ -490,6 +576,7 @@ export default function StitchingOrdersPage() {
                 })}
                 {Object.keys(monthlyGroups).length > 1 && (
                   <TableRow className="bg-muted/40">
+                    <TableCell></TableCell>
                     <TableCell colSpan={3} className="text-[10px] py-1.5 font-medium text-right">Sub-total ({group.label})</TableCell>
                     <TableCell className="text-[10px] py-1.5 font-mono font-medium">{group.qty} qty</TableCell>
                     <TableCell colSpan={2} className="text-[10px] py-1.5 font-mono text-muted-foreground">Value: {group.value.toFixed(0)}</TableCell>
@@ -500,6 +587,7 @@ export default function StitchingOrdersPage() {
             ))}
             {Object.keys(monthlyGroups).length > 1 && (
               <TableRow className="bg-muted/60 font-semibold">
+                <TableCell></TableCell>
                 <TableCell colSpan={3} className="text-xs py-2 text-right">Page Total ({pagination.pageItems.length} orders)</TableCell>
                 <TableCell className="text-xs py-2 font-mono">{pagination.pageItems.reduce((s, o) => s + (o.orderQty || 0), 0)} qty</TableCell>
                 <TableCell colSpan={2} className="text-xs py-2 font-mono">Value: {pagination.pageItems.reduce((s, o) => s + (o.orderQty || 0) * ((o as any).ratePerItem || 0), 0).toFixed(0)}</TableCell>

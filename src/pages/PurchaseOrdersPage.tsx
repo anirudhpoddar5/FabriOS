@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, FileDown, Printer, ShoppingCart, PackageCheck } from 'lucide-react';
+import { Plus, Search, FileDown, Printer, ShoppingCart, PackageCheck, CheckSquare, X } from 'lucide-react';
 import DataTablePagination from '@/components/DataTablePagination';
 import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
@@ -36,6 +36,7 @@ export default function PurchaseOrdersPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<any>({});
   const [lines, setLines] = useState<any[]>([]);
@@ -137,6 +138,40 @@ export default function PurchaseOrdersPage() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'purchase-orders-filtered.csv'; a.click();
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pagination.pageItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(pagination.pageItems.map((p: any) => p.id)));
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} PO(s)?`)) return;
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('purchase_order_lines').delete().eq('po_id', id);
+        await supabase.from('purchase_orders').delete().eq('id', id);
+      }
+      qc.invalidateQueries({ queryKey: ['purchase_orders'] });
+      setSelectedIds(new Set());
+      toast.success(`${selectedIds.size} PO(s) deleted`);
+    } catch (err: any) { toast.error(`Delete failed: ${err.message}`); }
+  };
+
+  const handleBulkStatus = async (status: string) => {
+    if (selectedIds.size === 0) return;
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('purchase_orders').update({ status }).eq('id', id);
+      }
+      qc.invalidateQueries({ queryKey: ['purchase_orders'] });
+      setSelectedIds(new Set());
+      toast.success(`${selectedIds.size} PO(s) updated to ${status}`);
+    } catch (err: any) { toast.error(`Bulk update failed: ${err.message}`); }
+  };
+
   const printFiltered = () => {
     printDetailPage(`Purchase Orders (${filtered.length})`, [
       { label: 'Filter', value: vendorFilter !== 'all' ? `Vendor selected` : 'All vendors' },
@@ -188,9 +223,33 @@ export default function PurchaseOrdersPage() {
         </div>
         <span className="text-xs text-muted-foreground">{filtered.length} PO{filtered.length !== 1 ? 's' : ''}</span>
       </div>
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-primary/5 rounded-md border">
+          <CheckSquare className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <Select value="" onValueChange={v => { handleBulkStatus(v); }}>
+            <SelectTrigger className="h-8 text-xs w-[140px]"><SelectValue placeholder="Change status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="draft">Draft</SelectItem><SelectItem value="sent">Sent</SelectItem>
+              <SelectItem value="received">Received</SelectItem><SelectItem value="closed">Closed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={handleBulkDelete}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 w-8 ml-auto" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
+            <TableHead className="text-xs h-8 w-8">
+              <input type="checkbox" className="accent-primary" checked={selectedIds.size === pagination.pageItems.length && pagination.pageItems.length > 0}
+                onChange={toggleSelectAll} />
+            </TableHead>
             <TableHead className="text-xs h-8">PO #</TableHead>
             <TableHead className="text-xs h-8">Vendor</TableHead>
             <TableHead className="text-xs h-8">Date</TableHead>
@@ -202,7 +261,7 @@ export default function PurchaseOrdersPage() {
           </TableRow></TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-12">
+              <TableRow><TableCell colSpan={9} className="text-center py-12">
                 <div className="flex flex-col items-center gap-2">
                   <ShoppingCart className="h-10 w-10 text-muted-foreground/40" />
                   <p className="text-sm text-muted-foreground">No purchase orders yet</p>
@@ -212,13 +271,16 @@ export default function PurchaseOrdersPage() {
             ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
               <Fragment key={monthKey}>
                 <TableRow className="bg-muted/30">
-                  <TableCell colSpan={7} className="text-[11px] font-semibold py-1.5 px-3">
+                  <TableCell colSpan={9} className="text-[11px] font-semibold py-1.5 px-3">
                     {monthKey === '__no_date__' ? 'No Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                     <span className="text-muted-foreground font-normal ml-2">({group.items.length} PO{group.items.length !== 1 ? 's' : ''})</span>
                   </TableCell>
                 </TableRow>
                 {group.items.map((po: any) => (
-                  <TableRow key={po.id} className="cursor-pointer" onClick={() => navigate(`/purchase-orders/${po.id}`)}>
+                  <TableRow key={po.id} className={selectedIds.has(po.id) ? 'bg-primary/5' : 'cursor-pointer'} onClick={() => navigate(`/purchase-orders/${po.id}`)}>
+                    <TableCell className="py-2 px-2" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" className="accent-primary" checked={selectedIds.has(po.id)} onChange={() => toggleSelect(po.id)} />
+                    </TableCell>
                     <TableCell className="text-sm py-2 font-medium">{po.po_number}</TableCell>
                     <TableCell className="text-sm py-2">{(po as any).vendors?.name || '-'}</TableCell>
                     <TableCell className="text-sm py-2">{po.po_date}</TableCell>
@@ -239,6 +301,7 @@ export default function PurchaseOrdersPage() {
                 ))}
                 {Object.keys(monthlyGroups).length > 1 && (
                   <TableRow className="bg-muted/40">
+                    <TableCell></TableCell>
                     <TableCell colSpan={6} className="text-[10px] py-1.5 font-medium text-right">Sub-total ({group.label})</TableCell>
                     <TableCell className="text-[10px] py-1.5 font-mono font-medium text-right">{group.amount.toFixed(2)}</TableCell>
                   </TableRow>
@@ -247,6 +310,7 @@ export default function PurchaseOrdersPage() {
             ))}
             {Object.keys(monthlyGroups).length > 1 && (
               <TableRow className="bg-muted/60 font-semibold">
+                <TableCell></TableCell>
                 <TableCell colSpan={6} className="text-xs py-2 text-right">Page Total ({pagination.pageItems.length} POs)</TableCell>
                 <TableCell className="text-xs py-2 text-right font-mono">{pagination.pageItems.reduce((s, p: any) => s + (p.total_amount || 0), 0).toFixed(2)}</TableCell>
               </TableRow>

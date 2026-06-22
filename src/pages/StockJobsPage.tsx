@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Plus, Search, Pencil, FileDown, Trash2, Printer } from 'lucide-react';
+import { Loader2, Plus, Search, Pencil, FileDown, Trash2, Printer, CheckSquare, X } from 'lucide-react';
 import { printDetailPage } from '@/lib/pdf-export';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -38,6 +38,7 @@ export default function StockJobsPage() {
   const { profile, currentModule } = useAuth();
   const companyId = profile?.company_id;
   const qc = useQueryClient();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -69,7 +70,10 @@ export default function StockJobsPage() {
     mutationFn: async (payload: any) => {
       if (editingId) {
         const { id, company_id, created_at, updated_at, ...updates } = payload;
-        const { error } = await supabase.from('stock_jobs').update(updates).eq('id', editingId).select();
+        // Ensure null values are explicitly set (not omitted) for cleared fields like end_date
+        const cleaned = { ...updates };
+        Object.keys(cleaned).forEach(k => { if (cleaned[k] === undefined) delete cleaned[k]; });
+        const { error } = await supabase.from('stock_jobs').update(cleaned).eq('id', editingId).select();
         if (error) throw error;
       } else {
         const { error } = await supabase.from('stock_jobs').insert({ ...payload, company_id: companyId });
@@ -90,6 +94,28 @@ export default function StockJobsPage() {
       }
     },
   });
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} job(s)?`)) return;
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('stock_jobs').delete().eq('id', id);
+      }
+      qc.invalidateQueries({ queryKey: ['stock_jobs'] });
+      setSelectedIds(new Set());
+      toast.success(`${selectedIds.size} job(s) deleted`);
+    } catch (err: any) { toast.error(`Delete failed: ${err.message}`); }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pagination.pageItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(pagination.pageItems.map((j: any) => j.id)));
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -159,10 +185,12 @@ export default function StockJobsPage() {
     }
     setJobNumberError('');
 
+    const startDate = form.start_date || null;
+    const endDate = form.end_date || null;
     saveMutation.mutate({
       ...form,
-      start_date: form.start_date || null,
-      end_date: form.end_date || null,
+      start_date: startDate,
+      end_date: endDate,
     });
   };
 
@@ -327,10 +355,26 @@ export default function StockJobsPage() {
 
       {/* Desktop table */}
       <Card className="hidden sm:block">
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border-b">
+            <CheckSquare className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={handleBulkDelete}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8 w-8 ml-auto" onClick={() => setSelectedIds(new Set())}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="text-xs h-8 w-8">
+                  <input type="checkbox" className="accent-primary" checked={selectedIds.size === pagination.pageItems.length && pagination.pageItems.length > 0}
+                    onChange={toggleSelectAll} />
+                </TableHead>
                 <TableHead className="text-xs h-8">Job #</TableHead>
                 <TableHead className="text-xs h-8">Product</TableHead>
                 <TableHead className="text-xs h-8">Module</TableHead>
@@ -345,20 +389,20 @@ export default function StockJobsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-sm text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-sm text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : pagination.pageItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-sm text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-8 text-sm text-muted-foreground">
                     {emptyMessage}
                   </TableCell>
                 </TableRow>
               ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
                 <Fragment key={monthKey}>
                   <TableRow className="bg-muted/30">
-                    <TableCell colSpan={9} className="text-[11px] font-semibold py-1.5 px-3">
+                    <TableCell colSpan={10} className="text-[11px] font-semibold py-1.5 px-3">
                       {monthKey === '__no_date__' ? 'No Start Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                       <span className="text-muted-foreground font-normal ml-2">({group.items.length} jobs, {group.qty} target qty)</span>
                     </TableCell>
@@ -366,7 +410,10 @@ export default function StockJobsPage() {
                   {group.items.map((j: any) => {
                     const pct = j.target_qty > 0 ? (j.produced_qty / j.target_qty) * 100 : 0;
                     return (
-                      <TableRow key={j.id}>
+                      <TableRow key={j.id} className={selectedIds.has(j.id) ? 'bg-primary/5' : ''}>
+                        <TableCell className="py-2 px-2">
+                          <input type="checkbox" className="accent-primary" checked={selectedIds.has(j.id)} onChange={() => toggleSelect(j.id)} />
+                        </TableCell>
                         <TableCell className="text-sm py-2 font-medium">{j.job_number}</TableCell>
                         <TableCell className="text-sm py-2">{j.product_name}</TableCell>
                         <TableCell className="text-sm py-2 capitalize">{j.module}</TableCell>

@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Search, FileDown, Truck, Pencil, Trash2, Loader2, Printer, Package } from 'lucide-react';
+import { AlertCircle, Search, FileDown, Truck, Pencil, Trash2, Loader2, Printer, Package, CheckSquare, X } from 'lucide-react';
 import DataTablePagination from '@/components/DataTablePagination';
 import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
@@ -27,6 +27,7 @@ export default function DispatchPage() {
   const [buyerFilter, setBuyerFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
@@ -172,6 +173,26 @@ export default function DispatchPage() {
     return groups;
   }, [pagination.pageItems]);
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pagination.pageItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(pagination.pageItems.map((d: any) => d.id)));
+  };
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} dispatch record(s)?`)) return;
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('dispatch_records').delete().eq('id', id);
+      }
+      qc.invalidateQueries({ queryKey: ['dispatch_records'] });
+      setSelectedIds(new Set());
+      toast.success(`${selectedIds.size} record(s) deleted`);
+    } catch (err: any) { toast.error(`Delete failed: ${err.message}`); }
+  };
+
   const printFiltered = () => {
     printDetailPage(`Dispatches (${filtered.length})`, [
       { label: 'Total Dispatches', value: String(filtered.length) },
@@ -213,9 +234,25 @@ export default function DispatchPage() {
         </div>
         <span className="text-xs text-muted-foreground">{filtered.length} dispatch{filtered.length !== 1 ? 'es' : ''}</span>
       </div>
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-primary/5 rounded-md border">
+          <CheckSquare className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={handleBulkDelete}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 w-8 ml-auto" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
+            <TableHead className="text-xs h-8 w-8">
+              <input type="checkbox" className="accent-primary" checked={selectedIds.size === pagination.pageItems.length && pagination.pageItems.length > 0}
+                onChange={toggleSelectAll} />
+            </TableHead>
             <TableHead className="text-xs h-8">Date</TableHead>
             <TableHead className="text-xs h-8">Buyer</TableHead>
             <TableHead className="text-xs h-8">Type</TableHead>
@@ -227,7 +264,7 @@ export default function DispatchPage() {
           </TableRow></TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-12">
+              <TableRow><TableCell colSpan={9} className="text-center py-12">
                 <div className="flex flex-col items-center gap-2">
                   <Package className="h-10 w-10 text-muted-foreground/40" />
                   <p className="text-sm text-muted-foreground">No dispatches recorded</p>
@@ -237,13 +274,16 @@ export default function DispatchPage() {
             ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
               <Fragment key={monthKey}>
                 <TableRow className="bg-muted/30">
-                  <TableCell colSpan={8} className="text-[11px] font-semibold py-1.5 px-3">
+                  <TableCell colSpan={9} className="text-[11px] font-semibold py-1.5 px-3">
                     {monthKey === '__no_date__' ? 'No Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                     <span className="text-muted-foreground font-normal ml-2">({group.items.length} records, {group.qty} qty)</span>
                   </TableCell>
                 </TableRow>
                 {group.items.map((d: any) => (
-                  <TableRow key={d.id}>
+                  <TableRow key={d.id} className={selectedIds.has(d.id) ? 'bg-primary/5' : ''}>
+                    <TableCell className="py-2 px-2">
+                      <input type="checkbox" className="accent-primary" checked={selectedIds.has(d.id)} onChange={() => toggleSelect(d.id)} />
+                    </TableCell>
                     <TableCell className="text-sm py-2">{d.dispatch_date}</TableCell>
                     <TableCell className="text-sm py-2">{(d as any).buyers?.name || '-'}</TableCell>
                     <TableCell className="py-2"><Badge variant="outline" className="text-[10px]">{d.dispatch_type}</Badge></TableCell>

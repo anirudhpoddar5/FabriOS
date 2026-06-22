@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, PackageCheck, Printer, ClipboardList, AlertTriangle } from 'lucide-react';
+import { Plus, Search, PackageCheck, Printer, ClipboardList, AlertTriangle, CheckSquare, Trash2, X } from 'lucide-react';
 import DataTablePagination from '@/components/DataTablePagination';
 import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
@@ -59,6 +59,7 @@ export default function GRNPage() {
   const [vendorFilter, setVendorFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<any>({});
   const [lines, setLines] = useState<GrnLineForm[]>([]);
@@ -281,6 +282,27 @@ export default function GRNPage() {
     return groups;
   }, [pagination.pageItems]);
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pagination.pageItems.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(pagination.pageItems.map((g: any) => g.id)));
+  };
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} GRN(s)?`)) return;
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('grn_lines').delete().eq('grn_id', id);
+        await supabase.from('grn_headers').delete().eq('id', id);
+      }
+      qc.invalidateQueries({ queryKey: ['grn_headers'] });
+      setSelectedIds(new Set());
+      toast.success(`${selectedIds.size} GRN(s) deleted`);
+    } catch (err: any) { toast.error(`Delete failed: ${err.message}`); }
+  };
+
   const printFiltered = () => {
     printDetailPage(`GRN Records (${filtered.length})`, [
       { label: 'Filter', value: vendorFilter !== 'all' ? `Vendor selected` : 'All vendors' },
@@ -319,9 +341,25 @@ export default function GRNPage() {
         </div>
         <span className="text-xs text-muted-foreground">{filtered.length} GRN{filtered.length !== 1 ? 's' : ''}</span>
       </div>
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-primary/5 rounded-md border">
+          <CheckSquare className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={handleBulkDelete}>
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 w-8 ml-auto" onClick={() => setSelectedIds(new Set())}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
+            <TableHead className="text-xs h-8 w-8">
+              <input type="checkbox" className="accent-primary" checked={selectedIds.size === pagination.pageItems.length && pagination.pageItems.length > 0}
+                onChange={toggleSelectAll} />
+            </TableHead>
             <TableHead className="text-xs h-8">GRN #</TableHead>
             <TableHead className="text-xs h-8">Vendor</TableHead>
             <TableHead className="text-xs h-8">PO #</TableHead>
@@ -331,7 +369,7 @@ export default function GRNPage() {
           </TableRow></TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-12">
+              <TableRow><TableCell colSpan={7} className="text-center py-12">
                 <div className="flex flex-col items-center gap-2">
                   <ClipboardList className="h-10 w-10 text-muted-foreground/40" />
                   <p className="text-sm text-muted-foreground">No GRN records yet</p>
@@ -341,13 +379,16 @@ export default function GRNPage() {
             ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
               <Fragment key={monthKey}>
                 <TableRow className="bg-muted/30">
-                  <TableCell colSpan={6} className="text-[11px] font-semibold py-1.5 px-3">
+                  <TableCell colSpan={7} className="text-[11px] font-semibold py-1.5 px-3">
                     {monthKey === '__no_date__' ? 'No Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                     <span className="text-muted-foreground font-normal ml-2">({group.items.length} record{group.items.length !== 1 ? 's' : ''})</span>
                   </TableCell>
                 </TableRow>
                 {group.items.map((g: any) => (
-                  <TableRow key={g.id} className="cursor-pointer" onClick={() => navigate(`/grn/${g.id}`)}>
+                  <TableRow key={g.id} className={selectedIds.has(g.id) ? 'bg-primary/5' : 'cursor-pointer'} onClick={() => navigate(`/grn/${g.id}`)}>
+                    <TableCell className="py-2 px-2" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" className="accent-primary" checked={selectedIds.has(g.id)} onChange={() => toggleSelect(g.id)} />
+                    </TableCell>
                     <TableCell className="text-sm py-2 font-medium">{g.grn_number}</TableCell>
                     <TableCell className="text-sm py-2">{(g as any).vendors?.name || '-'}</TableCell>
                     <TableCell className="text-sm py-2">{(g as any).purchase_orders?.po_number || '-'}</TableCell>
