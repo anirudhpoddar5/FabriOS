@@ -30,17 +30,21 @@ const CAMEL_OVERRIDES: Record<string, string> = {
   buyer_po: 'buyerPO',
 };
 
+// Maps known camelCase → snake_case for acronyms
+const SNAKE_OVERRIDES: Record<string, string> = {
+  internalPO: 'internal_po',
+  buyerPO: 'buyer_po',
+};
+
 // camelCase → snake_case
-// Handles consecutive uppercase as a single token (e.g. internalPO → internal_po)
-// Also handles edge cases like "noOfColours" → "no_of_colours"
 function toSnake(str: string): string {
+  if (SNAKE_OVERRIDES[str]) return SNAKE_OVERRIDES[str];
   let result = '';
   for (let i = 0; i < str.length; i++) {
     const ch = str[i];
     if (ch >= 'A' && ch <= 'Z') {
       const prev = i > 0 ? str[i - 1] : '';
       const next = i + 1 < str.length ? str[i + 1] : '';
-      const nextNext = i + 2 < str.length ? str[i + 2] : '';
       // Insert underscore before uppercase when previous char is lowercase
       if (prev >= 'a' && prev <= 'z') {
         result += '_';
@@ -160,21 +164,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const [
-        factories, shifts, buyers, fabrics,
+        factories, buyers, fabrics,
         printingProducts, stitchingProducts,
-        printingTables, stitchingLines,
         workerTypes, rateMasters,
         orderHeaders, orderRows, orderColourways,
         entries, profiles,
       ] = await Promise.all([
         supabase.from('factories').select('*').eq('company_id', companyId),
-        supabase.from('shifts').select('*'),
         supabase.from('buyers').select('*').eq('company_id', companyId),
         supabase.from('fabrics').select('*').eq('company_id', companyId),
         supabase.from('printing_products').select('*').eq('company_id', companyId),
         supabase.from('stitching_products').select('*').eq('company_id', companyId),
-        supabase.from('printing_tables').select('*'),
-        supabase.from('stitching_lines').select('*'),
         supabase.from('worker_types').select('*').eq('company_id', companyId),
         supabase.from('rate_masters').select('*').eq('company_id', companyId),
         supabase.from('order_headers').select('*').eq('company_id', companyId),
@@ -186,6 +186,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       // Get factory IDs for filtering shifts/tables/lines
       const factoryIds = (factories.data || []).map((f: any) => f.id);
+
+      // Fetch shifts/tables/lines filtered by company's factory IDs
+      const [shifts, printingTables, stitchingLines] = await Promise.all([
+        factoryIds.length > 0
+          ? supabase.from('shifts').select('*').in('factory_id', factoryIds)
+          : { data: [] },
+        factoryIds.length > 0
+          ? supabase.from('printing_tables').select('*').in('factory_id', factoryIds)
+          : { data: [] },
+        factoryIds.length > 0
+          ? supabase.from('stitching_lines').select('*').in('factory_id', factoryIds)
+          : { data: [] },
+      ]);
 
       // Split orders by module
       const allOrders = (orderHeaders.data || []).map(dbToFrontend);
@@ -239,13 +252,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         users: (profiles.data || []).map(dbToFrontend) as any,
         companies: [], // not needed at this level
         factories: (factories.data || []).map(dbToFrontend) as any,
-        shifts: (shifts.data || []).filter((s: any) => factoryIds.includes(s.factory_id)).map(dbToFrontend) as any,
+        shifts: (shifts.data || []).map(dbToFrontend) as any,
         buyers: (buyers.data || []).map(dbToFrontend) as any,
         fabrics: (fabrics.data || []).map(dbToFrontend) as any,
         printingProducts: (printingProducts.data || []).map(dbToFrontend) as any,
         stitchingProducts: (stitchingProducts.data || []).map(dbToFrontend) as any,
-        printingTables: (printingTables.data || []).filter((t: any) => factoryIds.includes(t.factory_id)).map(dbToFrontend) as any,
-        stitchingLines: (stitchingLines.data || []).filter((l: any) => factoryIds.includes(l.factory_id)).map(dbToFrontend) as any,
+        printingTables: (printingTables.data || []).map(dbToFrontend) as any,
+        stitchingLines: (stitchingLines.data || []).map(dbToFrontend) as any,
         workerTypes: (workerTypes.data || []).map(dbToFrontend) as any,
         rateMasters: (rateMasters.data || []).map(dbToFrontend) as any,
         printingOrders: printingOrders as any,

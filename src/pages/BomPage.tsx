@@ -169,8 +169,21 @@ export default function BomPage() {
         if (!vendor) throw new Error(`Vendor "${vendorName}" not found in vendor master`);
 
         const poNumber = `PO-${Date.now().toString(36).toUpperCase()}`;
-        const totalAmount = vLines.reduce((s, l) => s + (Number(l.total_amount) || 0), 0);
-        const poTotal = totalAmount > 0 ? totalAmount : null;
+
+        // Compute line amounts from qty_ordered * rate (not from l.total_amount which may be null)
+        const poLineRows = vLines.map(l => {
+          const qtyOrdered = Math.ceil((Number(l.quantity) || 0) * (Number(l.avg_consumption) || 1) * (1 + (Number(l.extra_pct) || 0) / 100));
+          const lineAmount = qtyOrdered * (Number(l.rate) || 0);
+          return {
+            po_id: '' as any, // set after po is created
+            item_name: l.item_name, item_id: l.item_id || null,
+            uom: l.uom || 'meters',
+            qty_ordered: qtyOrdered,
+            rate: Number(l.rate) || 0,
+            amount: lineAmount,
+          };
+        });
+        const poTotal = poLineRows.reduce((s, l) => s + l.amount, 0);
 
         const { data: po, error } = await supabase.from('purchase_orders').insert({
           po_number: poNumber, vendor_id: vendor.id, po_date: new Date().toISOString().slice(0, 10),
@@ -180,13 +193,8 @@ export default function BomPage() {
         }).select().single();
         if (error) throw error;
 
-        const poLineRows = vLines.map(l => ({
-          po_id: po.id, item_name: l.item_name, item_id: l.item_id || null,
-          uom: l.uom || 'meters',
-          qty_ordered: Math.ceil((Number(l.quantity) || 0) * (Number(l.avg_consumption) || 1) * (1 + (Number(l.extra_pct) || 0) / 100)),
-          rate: Number(l.rate) || 0, amount: Number(l.total_amount) || 0,
-        }));
-        const { error: lineErr } = await supabase.from('purchase_order_lines').insert(poLineRows);
+        const poLineInserts = poLineRows.map(l => ({ ...l, po_id: po.id }));
+        const { error: lineErr } = await supabase.from('purchase_order_lines').insert(poLineInserts);
         if (lineErr) throw lineErr;
       }
 
