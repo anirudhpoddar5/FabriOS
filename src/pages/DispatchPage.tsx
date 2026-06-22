@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
@@ -10,10 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Search, FileDown, Truck, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { AlertCircle, Search, FileDown, Truck, Pencil, Trash2, Loader2, Printer, Package } from 'lucide-react';
+import DataTablePagination from '@/components/DataTablePagination';
+import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExplainerTip } from '@/components/ExplainerTip';
+import { printDetailPage } from '@/lib/pdf-export';
 
 export default function DispatchPage() {
   const { profile } = useAuth();
@@ -21,6 +24,9 @@ export default function DispatchPage() {
   const companyId = profile?.company_id;
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [buyerFilter, setBuyerFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
@@ -141,10 +147,43 @@ export default function DispatchPage() {
   };
 
   const filtered = useMemo(() => {
-    if (!search) return dispatches;
-    const s = search.toLowerCase();
-    return dispatches.filter((d: any) => d.product_name?.toLowerCase().includes(s) || (d as any).buyers?.name?.toLowerCase().includes(s) || d.challan_number?.toLowerCase().includes(s));
-  }, [dispatches, search]);
+    return dispatches.filter((d: any) => {
+      if (buyerFilter !== 'all' && d.buyer_id !== buyerFilter) return false;
+      if (dateFrom && d.dispatch_date && d.dispatch_date < dateFrom) return false;
+      if (dateTo && d.dispatch_date && d.dispatch_date > dateTo) return false;
+      if (search) {
+        const s = search.toLowerCase();
+        if (!d.product_name?.toLowerCase().includes(s) && !(d as any).buyers?.name?.toLowerCase().includes(s) && !d.challan_number?.toLowerCase().includes(s)) return false;
+      }
+      return true;
+    });
+  }, [dispatches, search, buyerFilter, dateFrom, dateTo]);
+
+  const pagination = usePagination(filtered, 50);
+
+  const monthlyGroups = useMemo(() => {
+    const groups: Record<string, { label: string; items: typeof filtered; qty: number }> = {};
+    for (const d of pagination.pageItems) {
+      const month = d.dispatch_date ? d.dispatch_date.slice(0, 7) : '__no_date__';
+      if (!groups[month]) groups[month] = { label: month === '__no_date__' ? 'No Date' : month, items: [], qty: 0 };
+      groups[month].items.push(d);
+      groups[month].qty += d.qty || 0;
+    }
+    return groups;
+  }, [pagination.pageItems]);
+
+  const printFiltered = () => {
+    printDetailPage(`Dispatches (${filtered.length})`, [
+      { label: 'Total Dispatches', value: String(filtered.length) },
+      { label: 'Total Qty', value: String(filtered.reduce((s, d: any) => s + (d.qty || 0), 0)) },
+    ], [
+      {
+        title: 'Dispatch Records',
+        headers: ['Date', 'Buyer', 'Product', 'Colour', 'Qty', 'Challan'],
+        rows: filtered.map((d: any) => [d.dispatch_date, (d as any).buyers?.name || '—', d.product_name || '—', d.colour || '—', String(d.qty || 0), d.challan_number || '—']),
+      },
+    ]);
+  };
 
   return (
     <div>
@@ -155,9 +194,24 @@ export default function DispatchPage() {
           <Button size="sm" onClick={handleAdd}><Truck className="h-3.5 w-3.5 mr-1" /> New Dispatch</Button>
         </div>
       </div>
-      <div className="relative max-w-xs mb-3">
-        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-        <Input placeholder="Search dispatches..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Search dispatches..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
+        </div>
+        <Select value={buyerFilter} onValueChange={setBuyerFilter}>
+          <SelectTrigger className="h-9 w-[120px] text-xs"><SelectValue placeholder="Buyer" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Buyers</SelectItem>
+            {buyers.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name || b.code}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="From" />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="To" />
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={printFiltered} title="Print filtered"><Printer className="h-3.5 w-3.5" /></Button>
+        </div>
+        <span className="text-xs text-muted-foreground">{filtered.length} dispatch{filtered.length !== 1 ? 'es' : ''}</span>
       </div>
       <Card><CardContent className="p-0">
         <Table>
@@ -173,31 +227,48 @@ export default function DispatchPage() {
           </TableRow></TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">No dispatches recorded</TableCell></TableRow>
-            ) : filtered.map((d: any) => (
-              <TableRow key={d.id}>
-                <TableCell className="text-sm py-2">{d.dispatch_date}</TableCell>
-                <TableCell className="text-sm py-2">{(d as any).buyers?.name || '-'}</TableCell>
-                <TableCell className="py-2"><Badge variant="outline" className="text-[10px]">{d.dispatch_type}</Badge></TableCell>
-                <TableCell className="text-sm py-2">{d.product_name || '-'}</TableCell>
-                <TableCell className="text-sm py-2">{d.colour || '-'}</TableCell>
-                <TableCell className="text-sm py-2 text-right font-medium">{d.qty} {d.uom}</TableCell>
-                <TableCell className="text-sm py-2">{d.challan_number || '-'}</TableCell>
-                <TableCell className="py-2">
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(d)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(d.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-12">
+                <div className="flex flex-col items-center gap-2">
+                  <Package className="h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">No dispatches recorded</p>
+                  <p className="text-xs text-muted-foreground/60 max-w-xs">Record shipments against customer orders or from stock. Click "New Dispatch" to get started.</p>
+                </div>
+              </TableCell></TableRow>
+            ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
+              <Fragment key={monthKey}>
+                <TableRow className="bg-muted/30">
+                  <TableCell colSpan={8} className="text-[11px] font-semibold py-1.5 px-3">
+                    {monthKey === '__no_date__' ? 'No Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                    <span className="text-muted-foreground font-normal ml-2">({group.items.length} records, {group.qty} qty)</span>
+                  </TableCell>
+                </TableRow>
+                {group.items.map((d: any) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="text-sm py-2">{d.dispatch_date}</TableCell>
+                    <TableCell className="text-sm py-2">{(d as any).buyers?.name || '-'}</TableCell>
+                    <TableCell className="py-2"><Badge variant="outline" className="text-[10px]">{d.dispatch_type}</Badge></TableCell>
+                    <TableCell className="text-sm py-2">{d.product_name || '-'}</TableCell>
+                    <TableCell className="text-sm py-2">{d.colour || '-'}</TableCell>
+                    <TableCell className="text-sm py-2 text-right font-medium">{d.qty} {d.uom}</TableCell>
+                    <TableCell className="text-sm py-2">{d.challan_number || '-'}</TableCell>
+                    <TableCell className="py-2">
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(d)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(d.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </Fragment>
             ))}
           </TableBody>
         </Table>
       </CardContent></Card>
+      <DataTablePagination {...pagination} />
 
       <Dialog open={dialogOpen} onOpenChange={open => { setDialogOpen(open); if (!open) setEditingId(null); }}>
         <DialogContent className="max-w-md">

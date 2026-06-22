@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -9,9 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, FileDown } from 'lucide-react';
+import { Plus, Search, FileDown, Printer, ShoppingCart, PackageCheck } from 'lucide-react';
+import DataTablePagination from '@/components/DataTablePagination';
+import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { printDetailPage } from '@/lib/pdf-export';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -23,13 +27,26 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PurchaseOrdersPage() {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const companyId = profile?.company_id;
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [vendorFilter, setVendorFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<any>({});
   const [lines, setLines] = useState<any[]>([]);
+
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new') {
+      handleAdd();
+    }
+  }, []);
 
   const { data: pos = [] } = useQuery({
     queryKey: ['purchase_orders', companyId],
@@ -67,7 +84,6 @@ export default function PurchaseOrdersPage() {
         .insert({ po_number: form.po_number, vendor_id: form.vendor_id, po_date: form.po_date, status: 'draft', source_type: form.source_type || 'manual', currency: form.currency || 'USD', remarks: form.remarks, company_id: companyId })
         .select().single();
       if (error) throw error;
-      // Insert lines
       const validLines = lines.filter(l => l.item_name && l.qty_ordered > 0);
       if (validLines.length > 0) {
         const { error: lineError } = await supabase.from('purchase_order_lines')
@@ -87,32 +103,90 @@ export default function PurchaseOrdersPage() {
 
   const addLine = () => setLines(prev => [...prev, { id: crypto.randomUUID(), item_id: '', item_name: '', uom: 'meters', qty_ordered: 0, rate: 0 }]);
 
-  const exportCSV = () => {
-    const header = 'PO Number,Vendor,Date,Status,Total,Invoice,Payment\n';
-    const rows = pos.map((p: any) => `${p.po_number},${(p as any).vendors?.name || ''},${p.po_date},${p.status},${p.total_amount || 0},${p.invoice_number || ''},${p.payment_status || ''}`).join('\n');
+  const filtered = useMemo(() => {
+    return pos.filter((p: any) => {
+      if (vendorFilter !== 'all' && p.vendor_id !== vendorFilter) return false;
+      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (dateFrom && p.po_date && p.po_date < dateFrom) return false;
+      if (dateTo && p.po_date && p.po_date > dateTo) return false;
+      if (search) {
+        const s = search.toLowerCase();
+        if (!p.po_number?.toLowerCase().includes(s) && !(p as any).vendors?.name?.toLowerCase().includes(s)) return false;
+      }
+      return true;
+    });
+  }, [pos, search, vendorFilter, statusFilter, dateFrom, dateTo]);
+
+  const pagination = usePagination(filtered, 50);
+
+  const monthlyGroups = useMemo(() => {
+    const groups: Record<string, { label: string; items: typeof filtered; amount: number }> = {};
+    for (const p of pagination.pageItems) {
+      const month = p.po_date ? p.po_date.slice(0, 7) : '__no_date__';
+      if (!groups[month]) groups[month] = { label: month === '__no_date__' ? 'No Date' : month, items: [], amount: 0 };
+      groups[month].items.push(p);
+      groups[month].amount += p.total_amount || 0;
+    }
+    return groups;
+  }, [pagination.pageItems]);
+
+  const exportFilteredCSV = () => {
+    const header = 'PO Number,Vendor,Date,Status,Invoice,Payment,Amount\n';
+    const rows = filtered.map((p: any) => `${p.po_number},${(p as any).vendors?.name || ''},${p.po_date},${p.status},${p.invoice_number || ''},${p.payment_status || ''},${p.total_amount || 0}`).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'purchase_orders.csv'; a.click();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'purchase-orders-filtered.csv'; a.click();
   };
 
-  const filtered = useMemo(() => {
-    if (!search) return pos;
-    const s = search.toLowerCase();
-    return pos.filter((p: any) => p.po_number?.toLowerCase().includes(s) || (p as any).vendors?.name?.toLowerCase().includes(s));
-  }, [pos, search]);
+  const printFiltered = () => {
+    printDetailPage(`Purchase Orders (${filtered.length})`, [
+      { label: 'Filter', value: vendorFilter !== 'all' ? `Vendor selected` : 'All vendors' },
+      { label: 'Total POs', value: String(filtered.length) },
+      { label: 'Total Amount', value: `$${filtered.reduce((s, p: any) => s + (p.total_amount || 0), 0).toFixed(2)}` },
+    ], [
+      {
+        title: 'Purchase Orders',
+        headers: ['PO #', 'Vendor', 'Date', 'Status', 'Amount'],
+        rows: filtered.map((p: any) => [p.po_number, (p as any).vendors?.name || '—', p.po_date || '—', p.status, String(p.total_amount || 0)]),
+      },
+    ]);
+  };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-semibold">Purchase Orders</h1>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={exportCSV}><FileDown className="h-3.5 w-3.5 mr-1" /> Export</Button>
+          <Button size="sm" variant="outline" onClick={exportFilteredCSV}><FileDown className="h-3.5 w-3.5 mr-1" /> Export</Button>
           <Button size="sm" onClick={handleAdd}><Plus className="h-3.5 w-3.5 mr-1" /> New PO</Button>
         </div>
       </div>
-      <div className="relative max-w-xs mb-3">
-        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-        <Input placeholder="Search POs..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Search POs..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
+        </div>
+        <Select value={vendorFilter} onValueChange={setVendorFilter}>
+          <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Vendor" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Vendors</SelectItem>
+            {vendors.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-9 w-[100px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem><SelectItem value="sent">Sent</SelectItem>
+            <SelectItem value="partial">Partial</SelectItem><SelectItem value="received">Received</SelectItem>
+            <SelectItem value="closed">Closed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="From" />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="To" />
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={printFiltered} title="Print filtered"><Printer className="h-3.5 w-3.5" /></Button>
+        </div>
+        <span className="text-xs text-muted-foreground">{filtered.length} PO{filtered.length !== 1 ? 's' : ''}</span>
       </div>
       <Card><CardContent className="p-0">
         <Table>
@@ -124,28 +198,63 @@ export default function PurchaseOrdersPage() {
             <TableHead className="text-xs h-8">Invoice #</TableHead>
             <TableHead className="text-xs h-8">Payment</TableHead>
             <TableHead className="text-xs h-8 text-right">Amount</TableHead>
+            <TableHead className="text-xs h-8 w-16">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-8 text-sm text-muted-foreground">No purchase orders</TableCell></TableRow>
-            ) : filtered.map((po: any) => (
-              <TableRow key={po.id}>
-                <TableCell className="text-sm py-2 font-medium">{po.po_number}</TableCell>
-                <TableCell className="text-sm py-2">{(po as any).vendors?.name || '-'}</TableCell>
-                <TableCell className="text-sm py-2">{po.po_date}</TableCell>
-                <TableCell className="py-2">
-                  <Badge className={`text-[10px] ${STATUS_COLORS[po.status] || ''}`}>{po.status}</Badge>
-                </TableCell>
-                <TableCell className="text-sm py-2">{po.invoice_number || '-'}</TableCell>
-                <TableCell className="py-2">
-                  {po.payment_status && <Badge variant="outline" className="text-[10px]">{po.payment_status}</Badge>}
-                </TableCell>
-                <TableCell className="text-sm py-2 text-right">{po.total_amount || '-'}</TableCell>
-              </TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-12">
+                <div className="flex flex-col items-center gap-2">
+                  <ShoppingCart className="h-10 w-10 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">No purchase orders yet</p>
+                  <p className="text-xs text-muted-foreground/60 max-w-xs">Create purchase orders to procure materials from vendors. Click "New PO" to get started.</p>
+                </div>
+              </TableCell></TableRow>
+            ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
+              <Fragment key={monthKey}>
+                <TableRow className="bg-muted/30">
+                  <TableCell colSpan={7} className="text-[11px] font-semibold py-1.5 px-3">
+                    {monthKey === '__no_date__' ? 'No Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                    <span className="text-muted-foreground font-normal ml-2">({group.items.length} PO{group.items.length !== 1 ? 's' : ''})</span>
+                  </TableCell>
+                </TableRow>
+                {group.items.map((po: any) => (
+                  <TableRow key={po.id} className="cursor-pointer" onClick={() => navigate(`/purchase-orders/${po.id}`)}>
+                    <TableCell className="text-sm py-2 font-medium">{po.po_number}</TableCell>
+                    <TableCell className="text-sm py-2">{(po as any).vendors?.name || '-'}</TableCell>
+                    <TableCell className="text-sm py-2">{po.po_date}</TableCell>
+                    <TableCell className="py-2">
+                      <Badge className={`text-[10px] ${STATUS_COLORS[po.status] || ''}`}>{po.status}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm py-2">{po.invoice_number || '-'}</TableCell>
+                    <TableCell className="py-2">
+                      {po.payment_status && <Badge variant="outline" className="text-[10px]">{po.payment_status}</Badge>}
+                    </TableCell>
+                    <TableCell className="text-sm py-2 text-right">{po.total_amount || '-'}</TableCell>
+                    <TableCell className="py-2">
+                      <Button size="sm" variant="ghost" className="h-7 text-[10px]" onClick={e => { e.stopPropagation(); navigate(`/grn?po_id=${po.id}&vendor_id=${po.vendor_id}`); }}>
+                        <PackageCheck className="h-3 w-3 mr-1" /> Receive
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {Object.keys(monthlyGroups).length > 1 && (
+                  <TableRow className="bg-muted/40">
+                    <TableCell colSpan={6} className="text-[10px] py-1.5 font-medium text-right">Sub-total ({group.label})</TableCell>
+                    <TableCell className="text-[10px] py-1.5 font-mono font-medium text-right">{group.amount.toFixed(2)}</TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
             ))}
+            {Object.keys(monthlyGroups).length > 1 && (
+              <TableRow className="bg-muted/60 font-semibold">
+                <TableCell colSpan={6} className="text-xs py-2 text-right">Page Total ({pagination.pageItems.length} POs)</TableCell>
+                <TableCell className="text-xs py-2 text-right font-mono">{pagination.pageItems.reduce((s, p: any) => s + (p.total_amount || 0), 0).toFixed(2)}</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent></Card>
+      <DataTablePagination {...pagination} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">

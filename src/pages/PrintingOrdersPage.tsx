@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, Fragment, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useData, generateId } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,10 +13,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Pencil, Search, Trash2, AlertTriangle, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Search, Trash2, AlertTriangle, GripVertical, Printer } from 'lucide-react';
+import DataTablePagination from '@/components/DataTablePagination';
+import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
 import { DatePickerField } from '@/components/DatePickerField';
 import { getOrderBadge } from '@/lib/order-status';
+import { printDetailPage } from '@/lib/pdf-export';
 
 function makeRow(id?: string) {
   return {
@@ -36,10 +39,21 @@ export default function PrintingOrdersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [buyerFilter, setBuyerFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortBy, setSortBy] = useState('buyerDeliveryDate');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const [rows, setRows] = useState<any[]>([]);
+
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'new') {
+      handleAdd();
+    }
+  }, []);
 
   const orders = data.printingOrders;
   const buyers = data.buyers.filter(b => b.active);
@@ -65,15 +79,72 @@ export default function PrintingOrdersPage() {
 
   const filtered = useMemo(() => {
     return orders.filter(o => {
-      if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+      const prog = getProgress(o.id);
+      const derived = getOrderBadge(o.status, entryCountMap.get(o.id) || 0, o.targetEndDate, prog.pct);
+      if (statusFilter !== 'all' && derived.label !== statusFilter) return false;
       if (buyerFilter !== 'all' && o.buyerId !== buyerFilter) return false;
+      if (dateFrom && o.buyerDeliveryDate && o.buyerDeliveryDate < dateFrom) return false;
+      if (dateTo && o.buyerDeliveryDate && o.buyerDeliveryDate > dateTo) return false;
       if (search) {
         const s = search.toLowerCase();
         if (![(o.internalPO ?? ''), o.style, o.buyerPO, getBuyer(o.buyerId)].some(v => v?.toLowerCase().includes(s))) return false;
       }
       return true;
     });
-  }, [orders, search, statusFilter, buyerFilter]);
+  }, [orders, search, statusFilter, buyerFilter, dateFrom, dateTo, entryCountMap, getBuyer, getProgress]);
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'buyerDeliveryDate') {
+        const da = a.buyerDeliveryDate || '9999-12-31';
+        const db = b.buyerDeliveryDate || '9999-12-31';
+        return da.localeCompare(db);
+      }
+      if (sortBy === 'targetEndDate') {
+        const da = a.targetEndDate || '9999-12-31';
+        const db = b.targetEndDate || '9999-12-31';
+        return da.localeCompare(db);
+      }
+      if (sortBy === 'internalPO') return (a.internalPO || '').localeCompare(b.internalPO || '');
+      return 0;
+    });
+  }, [filtered, sortBy]);
+
+  const pagination = usePagination(sorted, 50);
+
+  const monthlyGroups = useMemo(() => {
+    const groups: Record<string, { label: string; items: typeof sorted; qty: number; value: number }> = {};
+    for (const o of pagination.pageItems) {
+      const month = o.buyerDeliveryDate ? o.buyerDeliveryDate.slice(0, 7) : '__no_date__';
+      if (!groups[month]) groups[month] = { label: month === '__no_date__' ? 'No Date' : month, items: [], qty: 0, value: 0 };
+      groups[month].items.push(o);
+      const orderValue = (o.orderQty || 0) * ((o as any).ratePerItem || 0);
+      groups[month].qty += o.orderQty || 0;
+      groups[month].value += orderValue;
+    }
+    return groups;
+  }, [pagination.pageItems]);
+
+  const exportFilteredCSV = () => {
+    const header = 'Internal PO,Buyer,Style,Qty,UOM,Status,Buyer Delivery Date,Target End Date\n';
+    const rows = sorted.map(o => `${o.internalPO},${getBuyer(o.buyerId)},${o.style},${o.orderQty || 0},${o.uom || ''},${o.status},${o.buyerDeliveryDate || ''},${o.targetEndDate || ''}`).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'printing-orders-filtered.csv'; a.click();
+  };
+
+  const printFiltered = () => {
+    printDetailPage(`Printing Orders (${sorted.length})`, [
+      { label: 'Filter', value: `${statusFilter !== 'all' ? `Status: ${statusFilter}` : 'All status'}${buyerFilter !== 'all' ? `, Buyer selected` : ''}` },
+      { label: 'Total Orders', value: String(sorted.length) },
+      { label: 'Total Qty', value: String(sorted.reduce((s, o) => s + (o.orderQty || 0), 0)) },
+    ], [
+      {
+        title: 'Orders',
+        headers: ['PO #', 'Buyer', 'Style', 'Qty', 'Status', 'Buyer Delivery'],
+        rows: sorted.map(o => [o.internalPO || '—', getBuyer(o.buyerId), o.style || '—', String(o.orderQty || 0), o.status, o.buyerDeliveryDate || '—']),
+      },
+    ]);
+  };
 
   const nextPO = () => {
     const nums = orders.map(o => { const m = (o.internalPO ?? '').match(/PO-P-(\d+)/); return m ? parseInt(m[1]) : 0; });
@@ -254,28 +325,45 @@ export default function PrintingOrdersPage() {
         <Button size="sm" onClick={handleAdd}><Plus className="h-3.5 w-3.5 mr-1" /> New Order</Button>
       </div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input className="pl-8 h-9 text-sm" placeholder="Search orders..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-9 w-[120px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="Started">Started</SelectItem>
+            <SelectItem value="Not Started">Not Started</SelectItem>
+            <SelectItem value="WIP">WIP</SelectItem>
+            <SelectItem value="Delayed">Delayed</SelectItem>
+            <SelectItem value="On-time">On-time</SelectItem>
             <SelectItem value="Completed">Completed</SelectItem>
-            <SelectItem value="Cancelled">Cancelled</SelectItem>
             <SelectItem value="Shipped">Shipped</SelectItem>
+            <SelectItem value="Cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
         <Select value={buyerFilter} onValueChange={setBuyerFilter}>
-          <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Buyer" /></SelectTrigger>
+          <SelectTrigger className="h-9 w-[120px] text-xs"><SelectValue placeholder="Buyer" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Buyers</SelectItem>
             {buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.code}</SelectItem>)}
           </SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground">{filtered.length} {filtered.length === 1 ? 'order' : 'orders'}</span>
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 w-[140px] text-xs" placeholder="From" />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 w-[140px] text-xs" placeholder="To" />
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="h-9 w-[110px] text-xs"><SelectValue placeholder="Sort by" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="buyerDeliveryDate">Delivery Date</SelectItem>
+            <SelectItem value="targetEndDate">Target End</SelectItem>
+            <SelectItem value="internalPO">PO #</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={printFiltered} title="Print filtered"><Printer className="h-3.5 w-3.5" /></Button>
+          <Button size="sm" variant="ghost" onClick={exportFilteredCSV} title="Export CSV"><span className="text-[10px]">CSV</span></Button>
+        </div>
+        <span className="text-xs text-muted-foreground">{sorted.length} {sorted.length === 1 ? 'order' : 'orders'}</span>
       </div>
       <div className="border rounded-md overflow-x-auto">
         <Table>
@@ -293,38 +381,64 @@ export default function PrintingOrdersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {sorted.length === 0 ? (
               <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">No orders found</TableCell></TableRow>
-            ) : filtered.map(o => {
-              const prog = getProgress(o.id);
-              return (
-                <TableRow key={o.id} className="cursor-pointer hover:bg-accent/50" onClick={() => navigate(`/printing-orders/${o.id}`)}>
-                  <TableCell className="text-sm py-2 font-mono">{o.internalPO ?? '—'}</TableCell>
-                  <TableCell className="text-sm py-2">{getBuyer(o.buyerId)}</TableCell>
-                  <TableCell className="text-sm py-2">{o.style}</TableCell>
-                  <TableCell className="text-sm py-2">{getProduct(o.printingProductId)}</TableCell>
-                  <TableCell className="text-sm py-2">{getFabric(o.fabricId)}</TableCell>
-                  <TableCell className="text-sm py-2">{o.orderQty} {o.uom}</TableCell>
-                  <TableCell className="py-2">
-                    <div className="flex items-center gap-2">
-                      <Progress value={Math.min(prog.pct, 100)} className="h-2 flex-1" />
-                      <span className={`text-[10px] font-medium ${prog.pct >= 100 ? 'text-success' : prog.pct > 0 ? 'text-primary' : 'text-muted-foreground'}`}>{prog.pct.toFixed(0)}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-2">
-                    <Badge className={`text-[10px] ${getOrderBadge(o.status, entryCountMap.get(o.id) || 0, o.targetEndDate).className}`}>
-                      {getOrderBadge(o.status, entryCountMap.get(o.id) || 0, o.targetEndDate).label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="py-2">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleEdit(e, o)}><Pencil className="h-3.5 w-3.5" /></Button>
+            ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
+              <Fragment key={monthKey}>
+                <TableRow className="bg-muted/30">
+                  <TableCell colSpan={9} className="text-[11px] font-semibold py-1.5 px-3">
+                    {monthKey === '__no_date__' ? 'No Delivery Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                    <span className="text-muted-foreground font-normal ml-2">({group.items.length} orders, {group.qty} qty)</span>
                   </TableCell>
                 </TableRow>
-              );
-            })}
+                {group.items.map(o => {
+                  const prog = getProgress(o.id);
+                  return (
+                    <TableRow key={o.id} className="cursor-pointer hover:bg-accent/50" onClick={() => navigate(`/printing-orders/${o.id}`)}>
+                      <TableCell className="text-sm py-2 font-mono">{o.internalPO ?? '—'}</TableCell>
+                      <TableCell className="text-sm py-2">{getBuyer(o.buyerId)}</TableCell>
+                      <TableCell className="text-sm py-2">{o.style}</TableCell>
+                      <TableCell className="text-sm py-2">{getProduct(o.printingProductId)}</TableCell>
+                      <TableCell className="text-sm py-2">{getFabric(o.fabricId)}</TableCell>
+                      <TableCell className="text-sm py-2">{o.orderQty} {o.uom}</TableCell>
+                      <TableCell className="py-2">
+                        <div className="flex items-center gap-2">
+                          <Progress value={Math.min(prog.pct, 100)} className="h-2 flex-1" />
+                          <span className={`text-[10px] font-medium ${prog.pct >= 100 ? 'text-success' : prog.pct > 0 ? 'text-primary' : 'text-muted-foreground'}`}>{prog.pct.toFixed(0)}%</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Badge className={`text-[10px] ${getOrderBadge(o.status, entryCountMap.get(o.id) || 0, o.targetEndDate, prog.pct).className}`}>
+                          {getOrderBadge(o.status, entryCountMap.get(o.id) || 0, o.targetEndDate, prog.pct).label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleEdit(e, o)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {Object.keys(monthlyGroups).length > 1 && (
+                  <TableRow className="bg-muted/40">
+                    <TableCell colSpan={5} className="text-[10px] py-1.5 font-medium text-right">Sub-total ({group.label})</TableCell>
+                    <TableCell className="text-[10px] py-1.5 font-mono font-medium">{group.qty}</TableCell>
+                    <TableCell colSpan={2} className="text-[10px] py-1.5 font-mono text-muted-foreground">Value: {group.value.toFixed(0)}</TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            ))}
+            {Object.keys(monthlyGroups).length > 1 && (
+              <TableRow className="bg-muted/60 font-semibold">
+                <TableCell colSpan={5} className="text-xs py-2 text-right">Page Total ({pagination.pageItems.length} orders)</TableCell>
+                <TableCell className="text-xs py-2 font-mono">{pagination.pageItems.reduce((s, o) => s + (o.orderQty || 0), 0)}</TableCell>
+                <TableCell colSpan={3} className="text-xs py-2 font-mono">Value: {pagination.pageItems.reduce((s, o) => s + (o.orderQty || 0) * ((o as any).ratePerItem || 0), 0).toFixed(0)}</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
+      <DataTablePagination {...pagination} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

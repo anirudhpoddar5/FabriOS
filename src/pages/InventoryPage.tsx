@@ -11,9 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Search, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { Plus, Pencil, Search, ArrowDownToLine, ArrowUpFromLine, Box, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import DataTablePagination from '@/components/DataTablePagination';
+import { usePagination } from '@/hooks/use-pagination';
 
 export default function InventoryPage() {
   const { profile } = useAuth();
@@ -116,6 +118,9 @@ export default function InventoryPage() {
     return items.filter((i: any) => i.name?.toLowerCase().includes(s) || i.code?.toLowerCase().includes(s));
   }, [items, search]);
 
+  const itemsPagination = usePagination(filteredItems, 50);
+  const txnPagination = usePagination(transactions, 50);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -151,8 +156,14 @@ export default function InventoryPage() {
               </TableRow></TableHeader>
               <TableBody>
                 {filteredItems.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-sm text-muted-foreground">No items. Add inventory items to track stock.</TableCell></TableRow>
-                ) : filteredItems.map((item: any) => {
+                  <TableRow><TableCell colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-2">
+                      <Box className="h-10 w-10 text-muted-foreground/40" />
+                      <p className="text-sm text-muted-foreground">No inventory items</p>
+                      <p className="text-xs text-muted-foreground/60 max-w-xs">Add inventory items like fabrics, trims, and accessories to track stock levels. Click "Add Item" to get started.</p>
+                    </div>
+                  </TableCell></TableRow>
+                ) : itemsPagination.pageItems.map((item: any) => {
                   const onHand = stockMap[item.id] || 0;
                   const lowStock = item.reorder_level > 0 && onHand <= item.reorder_level;
                   return (
@@ -174,6 +185,7 @@ export default function InventoryPage() {
               </TableBody>
             </Table>
           </CardContent></Card>
+          <DataTablePagination {...itemsPagination} />
         </TabsContent>
 
         <TabsContent value="transactions">
@@ -190,8 +202,14 @@ export default function InventoryPage() {
               </TableRow></TableHeader>
               <TableBody>
                 {transactions.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-sm text-muted-foreground">No transactions</TableCell></TableRow>
-                ) : transactions.map((t: any) => {
+                  <TableRow><TableCell colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-2">
+                      <RefreshCw className="h-10 w-10 text-muted-foreground/40" />
+                      <p className="text-sm text-muted-foreground">No stock transactions</p>
+                      <p className="text-xs text-muted-foreground/60 max-w-xs">Stock movements appear here when you record inward receipts or outward issues using the buttons above.</p>
+                    </div>
+                  </TableCell></TableRow>
+                ) : txnPagination.pageItems.map((t: any) => {
                   const orderRef = t.order_id ? (allOrders.find((o: any) => o.id === t.order_id)?.internalPO || t.order_id.slice(0, 8)) : '';
                   const jobRef = t.stock_job_id ? (stockJobs.find((j: any) => j.id === t.stock_job_id)?.job_number || t.stock_job_id.slice(0, 8)) : '';
                   return (
@@ -211,6 +229,7 @@ export default function InventoryPage() {
               </TableBody>
             </Table>
           </CardContent></Card>
+          <DataTablePagination {...txnPagination} />
         </TabsContent>
       </Tabs>
 

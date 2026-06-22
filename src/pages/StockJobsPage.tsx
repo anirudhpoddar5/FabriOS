@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Plus, Search, Pencil, FileDown, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Search, Pencil, FileDown, Trash2, Printer } from 'lucide-react';
+import { printDetailPage } from '@/lib/pdf-export';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePagination } from '@/hooks/use-pagination';
+import DataTablePagination from '@/components/DataTablePagination';
 
 // BUG FIX (Polish): distinct colors per status
 const STATUS_COLORS: Record<string, string> = {
@@ -36,6 +39,9 @@ export default function StockJobsPage() {
   const companyId = profile?.company_id;
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
@@ -200,14 +206,16 @@ export default function StockJobsPage() {
     }
   };
 
-  // BUG 2: filter by workspace module, then by search
   const filtered = useMemo(() => {
     let list = jobs as any[];
-    // Apply workspace module filter
     if (currentModule && currentModule !== 'both') {
       list = list.filter((j: any) => j.module === currentModule);
     }
-    // Apply search filter
+    if (statusFilter !== 'all') {
+      list = list.filter((j: any) => j.status === statusFilter);
+    }
+    if (dateFrom) list = list.filter((j: any) => !j.start_date || j.start_date >= dateFrom);
+    if (dateTo) list = list.filter((j: any) => !j.start_date || j.start_date <= dateTo);
     if (search) {
       const s = search.toLowerCase();
       list = list.filter((j: any) =>
@@ -216,9 +224,34 @@ export default function StockJobsPage() {
       );
     }
     return list;
-  }, [jobs, search, currentModule]);
+  }, [jobs, search, currentModule, statusFilter, dateFrom, dateTo]);
 
-  // BUG FIX (Polish): context-aware empty state message
+  const pagination = usePagination(filtered, 50);
+
+  const monthlyGroups = useMemo(() => {
+    const groups: Record<string, { label: string; items: typeof filtered; qty: number }> = {};
+    for (const j of pagination.pageItems) {
+      const month = j.start_date ? j.start_date.slice(0, 7) : '__no_date__';
+      if (!groups[month]) groups[month] = { label: month === '__no_date__' ? 'No Date' : month, items: [], qty: 0 };
+      groups[month].items.push(j);
+      groups[month].qty += j.target_qty || 0;
+    }
+    return groups;
+  }, [pagination.pageItems]);
+
+  const printFiltered = () => {
+    printDetailPage(`Stock Jobs (${filtered.length})`, [
+      { label: 'Filter', value: statusFilter !== 'all' ? `Status: ${statusFilter}` : 'All' },
+      { label: 'Total Jobs', value: String(filtered.length) },
+    ], [
+      {
+        title: 'Stock Jobs',
+        headers: ['Job #', 'Product', 'Module', 'Target', 'Produced', 'Status'],
+        rows: filtered.map((j: any) => [j.job_number || '—', j.product_name || '—', j.module || '—', String(j.target_qty || 0), String(j.produced_qty || 0), j.status]),
+      },
+    ]);
+  };
+
   const emptyMessage = search
     ? 'No jobs match your search.'
     : "No stock jobs found. Click '+ New Job' to create one.";
@@ -239,25 +272,38 @@ export default function StockJobsPage() {
         </div>
       </div>
 
-      <div className="relative max-w-xs mb-3">
-        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-        <Input
-          placeholder="Search jobs..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="pl-8 h-8 text-sm"
-        />
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Search jobs..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-9 w-[110px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="planned">Planned</SelectItem>
+            <SelectItem value="in_progress">In Progress</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="From" />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="To" />
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={printFiltered} title="Print filtered"><Printer className="h-3.5 w-3.5" /></Button>
+        </div>
+        <span className="text-xs text-muted-foreground">{filtered.length} job{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 
       {/* Mobile cards */}
       <div className="sm:hidden space-y-2">
-        {filtered.length === 0 ? (
+        {pagination.pageItems.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-sm text-muted-foreground">
               {emptyMessage}
             </CardContent>
           </Card>
-        ) : filtered.map((j: any) => {
+        ) : pagination.pageItems.map((j: any) => {
           const pct = j.target_qty > 0 ? (j.produced_qty / j.target_qty) * 100 : 0;
           return (
             <Card key={j.id} className="cursor-pointer" onClick={() => handleEdit(j)}>
@@ -303,50 +349,62 @@ export default function StockJobsPage() {
                     Loading...
                   </TableCell>
                 </TableRow>
-              ) : filtered.length === 0 ? (
+              ) : pagination.pageItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-8 text-sm text-muted-foreground">
                     {emptyMessage}
                   </TableCell>
                 </TableRow>
-              ) : filtered.map((j: any) => {
-                const pct = j.target_qty > 0 ? (j.produced_qty / j.target_qty) * 100 : 0;
-                return (
-                  <TableRow key={j.id}>
-                    <TableCell className="text-sm py-2 font-medium">{j.job_number}</TableCell>
-                    <TableCell className="text-sm py-2">{j.product_name}</TableCell>
-                    <TableCell className="text-sm py-2 capitalize">{j.module}</TableCell>
-                    <TableCell className="text-sm py-2 text-right">{j.target_qty} {j.uom}</TableCell>
-                    <TableCell className="text-sm py-2 text-right">{j.produced_qty}</TableCell>
-                    <TableCell className="text-sm py-2 text-right font-medium">{j.target_qty - j.produced_qty}</TableCell>
-                    <TableCell className="py-2">
-                      <div className="flex items-center gap-1">
-                        <Progress value={Math.min(pct, 100)} className="h-1.5 w-16" />
-                        <span className="text-[10px]">{pct.toFixed(0)}%</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-2">
-                      <Badge className={`text-[10px] ${STATUS_COLORS[j.status] || ''}`}>
-                        {j.status.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-2">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(j)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(j.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+              ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
+                <Fragment key={monthKey}>
+                  <TableRow className="bg-muted/30">
+                    <TableCell colSpan={9} className="text-[11px] font-semibold py-1.5 px-3">
+                      {monthKey === '__no_date__' ? 'No Start Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                      <span className="text-muted-foreground font-normal ml-2">({group.items.length} jobs, {group.qty} target qty)</span>
                     </TableCell>
                   </TableRow>
-                );
-              })}
+                  {group.items.map((j: any) => {
+                    const pct = j.target_qty > 0 ? (j.produced_qty / j.target_qty) * 100 : 0;
+                    return (
+                      <TableRow key={j.id}>
+                        <TableCell className="text-sm py-2 font-medium">{j.job_number}</TableCell>
+                        <TableCell className="text-sm py-2">{j.product_name}</TableCell>
+                        <TableCell className="text-sm py-2 capitalize">{j.module}</TableCell>
+                        <TableCell className="text-sm py-2 text-right">{j.target_qty} {j.uom}</TableCell>
+                        <TableCell className="text-sm py-2 text-right">{j.produced_qty}</TableCell>
+                        <TableCell className="text-sm py-2 text-right font-medium">{j.target_qty - j.produced_qty}</TableCell>
+                        <TableCell className="py-2">
+                          <div className="flex items-center gap-1">
+                            <Progress value={Math.min(pct, 100)} className="h-1.5 w-16" />
+                            <span className="text-[10px]">{pct.toFixed(0)}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Badge className={`text-[10px] ${STATUS_COLORS[j.status] || ''}`}>
+                            {j.status.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(j)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deleteMutation.mutate(j.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </Fragment>
+              ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <DataTablePagination {...pagination} />
 
       <Dialog open={dialogOpen} onOpenChange={open => { setDialogOpen(open); if (!open) { setJobNumberError(''); setDateError(''); } }}>
         <DialogContent className="max-w-md">

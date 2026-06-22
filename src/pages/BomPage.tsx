@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +17,8 @@ import { Plus, Trash2, Pencil, FileDown, FileText, Package, ShoppingCart, Shoppi
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExplainerTip } from '@/components/ExplainerTip';
+import { usePagination } from '@/hooks/use-pagination';
+import DataTablePagination from '@/components/DataTablePagination';
 
 const CATEGORIES = ['fabric', 'trim', 'accessory', 'other'];
 
@@ -28,6 +31,7 @@ const PURCHASE_STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 export default function BomPage() {
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const { data: appData } = useData();
   const companyId = profile?.company_id;
@@ -105,7 +109,7 @@ export default function BomPage() {
             bom_id: editingId, category: l.category || 'fabric', item_name: l.item_name || '',
             item_id: l.item_id || null, quantity: Number(l.quantity) || 0,
             avg_consumption: Number(l.avg_consumption) || 0, extra_pct: Number(l.extra_pct) || 0,
-            rate: Number(l.rate) || 0, total_amount: Number(l.total_amount) || 0,
+            rate: Number(l.rate) || 0, total_amount: Number(l.total_amount) || null,
             uom: l.uom || '', vendor_name: l.vendor_name || null, remarks: l.remarks || null,
             sort_order: i,
           }));
@@ -124,7 +128,7 @@ export default function BomPage() {
             bom_id: bomId, category: l.category || 'fabric', item_name: l.item_name || '',
             item_id: l.item_id || null, quantity: Number(l.quantity) || 0,
             avg_consumption: Number(l.avg_consumption) || 0, extra_pct: Number(l.extra_pct) || 0,
-            rate: Number(l.rate) || 0, total_amount: Number(l.total_amount) || 0,
+            rate: Number(l.rate) || 0, total_amount: Number(l.total_amount) || null,
             uom: l.uom || '', vendor_name: l.vendor_name || null, remarks: l.remarks || null,
             sort_order: i,
           }));
@@ -165,12 +169,13 @@ export default function BomPage() {
         if (!vendor) throw new Error(`Vendor "${vendorName}" not found in vendor master`);
 
         const poNumber = `PO-${Date.now().toString(36).toUpperCase()}`;
-        const totalAmount = vLines.reduce((s, l) => s + (Number(l.total_amount) || 0), 0) || null;
+        const totalAmount = vLines.reduce((s, l) => s + (Number(l.total_amount) || 0), 0);
+        const poTotal = totalAmount > 0 ? totalAmount : null;
 
         const { data: po, error } = await supabase.from('purchase_orders').insert({
           po_number: poNumber, vendor_id: vendor.id, po_date: new Date().toISOString().slice(0, 10),
           status: 'draft', source_type: form.bom_type === 'manual' ? 'manual' : 'bom',
-          currency: 'USD', total_amount: totalAmount, order_id: sourceRef,
+          currency: 'USD', total_amount: poTotal, order_id: sourceRef,
           company_id: companyId, remarks: `From BOM: ${form.title || editingId?.slice(0, 8)}`,
         }).select().single();
         if (error) throw error;
@@ -278,6 +283,8 @@ export default function BomPage() {
     return boms.filter((b: any) => b.bom_type === type);
   }, [boms, tab]);
 
+  const pagination = usePagination(filteredBoms, 50);
+
   const toggleLineSelect = (idx: number) => {
     setSelectedLineIdxs(prev => {
       const next = new Set(prev);
@@ -311,7 +318,7 @@ export default function BomPage() {
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">{emptyDesc}</p>
         </CardContent></Card>
       ) : (
-        <Card><CardContent className="p-0 overflow-x-auto">
+        <><Card><CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader><TableRow>
               <TableHead className="text-xs h-8">Title</TableHead>
@@ -321,8 +328,8 @@ export default function BomPage() {
               <TableHead className="text-xs h-8 w-16"></TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {filteredBoms.map((b: any) => (
-                <TableRow key={b.id} className="cursor-pointer" onClick={() => handleEdit(b)}>
+              {pagination.pageItems.map((b: any) => (
+                <TableRow key={b.id} className="cursor-pointer" onClick={() => navigate(`/bom/${b.id}`)}>
                   <TableCell className="text-sm py-2">{b.title || '-'}</TableCell>
                   <TableCell className="text-sm py-2">{b.order_id ? allOrders.find((o: any) => o.id === b.order_id)?.internalPO || b.order_id.slice(0, 8) : '-'}</TableCell>
                   <TableCell className="py-2"><Badge variant="outline" className="text-[10px]">{b.status}</Badge></TableCell>
@@ -333,6 +340,7 @@ export default function BomPage() {
             </TableBody>
           </Table>
         </CardContent></Card>
+        <DataTablePagination {...pagination} /></>
       )}
     </div>
   );
@@ -414,7 +422,7 @@ export default function BomPage() {
             <div className="flex items-center justify-between mt-2">
               <h3 className="text-sm font-medium">Material Lines</h3>
               <div className="flex gap-2">
-                {lines.length > 0 && editingId && (
+                {lines.length > 0 && (
                   <Button size="sm" variant="secondary" onClick={handleGeneratePOs}>
                     <ShoppingBag className="h-3.5 w-3.5 mr-1" /> Generate POs
                   </Button>
