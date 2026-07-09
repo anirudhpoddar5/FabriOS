@@ -172,6 +172,7 @@ export interface ProductionEntry {
   date: string;
   module: 'printing' | 'stitching';
   orderId: string;
+  orderRowId?: string;
   colourwayId: string;
   factoryId: string;
   shiftId: string;
@@ -206,6 +207,120 @@ export interface AppData {
   stitchingOrders: StitchingOrder[];
   stitchingColourways: StitchingColourway[];
   entries: ProductionEntry[];
+  workers: Worker[];
+  quotations: Quotation[];
+  quotationLines: QuotationLine[];
+  invoices: Invoice[];
+  subcontractJobs: SubcontractJob[];
+}
+
+export interface Worker {
+  id: string;
+  companyId: string;
+  factoryId: string;
+  employeeCode: string;
+  name: string;
+  workerTypeId: string;
+  phone?: string;
+  hourlyRate: number;
+  active: boolean;
+}
+
+export interface Attendance {
+  id: string;
+  companyId: string;
+  workerId: string;
+  date: string;
+  shiftId?: string;
+  checkIn?: string;
+  checkOut?: string;
+  hoursWorked?: number;
+  overtimeHours?: number;
+  status: 'present' | 'absent' | 'leave';
+  notes?: string;
+}
+
+export interface Quotation {
+  id: string;
+  companyId: string;
+  quotationNumber: string;
+  buyerId?: string;
+  date: string;
+  validUntil?: string;
+  currency: string;
+  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
+  subtotal: number;
+  taxPercent: number;
+  taxAmount: number;
+  total: number;
+  remarks?: string;
+}
+
+export interface QuotationLine {
+  id: string;
+  quotationId: string;
+  productId?: string;
+  description: string;
+  qty: number;
+  uom: string;
+  rate: number;
+  amount: number;
+  sortOrder: number;
+}
+
+export interface MaterialIssue {
+  id: string;
+  companyId: string;
+  orderId?: string;
+  rowId?: string;
+  itemName: string;
+  itemId?: string;
+  uom: string;
+  qtyIssued: number;
+  qtyConsumed: number;
+  qtyWasted: number;
+  date: string;
+  notes?: string;
+}
+
+export interface Invoice {
+  id: string;
+  companyId: string;
+  invoiceNumber: string;
+  buyerId?: string;
+  orderId?: string;
+  dispatchId?: string;
+  invoiceDate: string;
+  dueDate: string;
+  currency: string;
+  subtotal: number;
+  taxPercent: number;
+  taxAmount: number;
+  grandTotal: number;
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  paymentDate?: string;
+  paymentMode?: string;
+  notes?: string;
+}
+
+export interface SubcontractJob {
+  id: string;
+  companyId: string;
+  jobNumber: string;
+  orderId?: string;
+  subcontractorId?: string;
+  process: 'printing' | 'stitching' | 'both';
+  productDescription?: string;
+  qtySent: number;
+  qtyReceived: number;
+  qtyBalance: number;
+  rate: number;
+  amount: number;
+  sendDate: string;
+  expectedReturnDate?: string;
+  receivedDate?: string;
+  status: 'sent' | 'partial' | 'received' | 'cancelled';
+  notes?: string;
 }
 
 export type AppModule = 'printing' | 'stitching' | 'both';

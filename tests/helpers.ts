@@ -33,9 +33,11 @@ export function getSupabaseAdmin(): SupabaseClient {
 export async function selectOption(page: Page, label: string, optionText: string | RegExp) {
   const parent = page.locator(`div:has(> label:text-is("${label}"))`).first();
   const trigger = parent.locator('[role="combobox"]');
-  await trigger.click();
-  await page.waitForTimeout(200);
-  await page.getByRole('option', { name: optionText as any }).first().click();
+  await trigger.click({ force: true });
+  await page.waitForTimeout(300);
+  const option = page.getByRole('option', { name: optionText as any }).first();
+  await option.waitFor({ state: 'visible', timeout: 10_000 });
+  await option.click();
 }
 
 export async function clickButton(page: Page, text: string | RegExp) {

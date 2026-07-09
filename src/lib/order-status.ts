@@ -6,7 +6,8 @@ export interface OrderBadge {
 export function getOrderBadge(
   status: string,
   entryCount: number,
-  targetEndDate?: string
+  targetEndDate?: string,
+  progressPct?: number
 ): OrderBadge {
   const today = new Date().toISOString().slice(0, 10);
   const isPastDue = !!targetEndDate && targetEndDate < today;
@@ -20,6 +21,9 @@ export function getOrderBadge(
       return { label: 'Completed', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
     case 'Started':
     default:
+      if (progressPct !== undefined && progressPct >= 100) {
+        return { label: 'Completed', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+      }
       if (entryCount === 0) {
         if (isPastDue) return { label: 'Delayed', className: 'bg-red-50 text-red-700 border-red-200' };
         return { label: 'Not Started', className: 'bg-gray-50 text-gray-500 border-gray-200' };

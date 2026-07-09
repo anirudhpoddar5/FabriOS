@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { AppData } from '@/types';
+import { dbToFrontend, frontendToDb, COMPANY_TABLES, ORDER_HEADER_COLS, ORDER_ROW_COLS } from '@/lib/data-utils';
 
 // Maps AppData keys to Supabase table names
 const TABLE_MAP: Record<keyof AppData, string> = {
@@ -22,99 +23,12 @@ const TABLE_MAP: Record<keyof AppData, string> = {
   stitchingOrders: 'order_headers',
   stitchingColourways: 'order_colourways',
   entries: 'production_entries',
+  workers: 'workers',
+  quotations: 'quotations',
+  quotationLines: 'quotation_lines',
+  invoices: 'invoices',
+  subcontractJobs: 'subcontract_jobs',
 };
-
-// Maps known snake_case → camelCase for acronyms
-const CAMEL_OVERRIDES: Record<string, string> = {
-  internal_po: 'internalPO',
-  buyer_po: 'buyerPO',
-};
-
-// Maps known camelCase → snake_case for acronyms
-const SNAKE_OVERRIDES: Record<string, string> = {
-  internalPO: 'internal_po',
-  buyerPO: 'buyer_po',
-};
-
-// camelCase → snake_case
-function toSnake(str: string): string {
-  if (SNAKE_OVERRIDES[str]) return SNAKE_OVERRIDES[str];
-  let result = '';
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (ch >= 'A' && ch <= 'Z') {
-      const prev = i > 0 ? str[i - 1] : '';
-      const next = i + 1 < str.length ? str[i + 1] : '';
-      // Insert underscore before uppercase when previous char is lowercase
-      if (prev >= 'a' && prev <= 'z') {
-        result += '_';
-      }
-      // Insert underscore between consecutive uppercase if followed by lowercase
-      // e.g., "UIButton" → "UI_Button"
-      else if (prev >= 'A' && prev <= 'Z' && next >= 'a' && next <= 'z') {
-        result += '_';
-      }
-    }
-    result += ch.toLowerCase();
-  }
-  return result;
-}
-
-// snake_case → camelCase
-function toCamel(str: string): string {
-  if (CAMEL_OVERRIDES[str]) return CAMEL_OVERRIDES[str];
-  return str.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
-}
-
-function objectToSnake(obj: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    const snakeKey = toSnake(k);
-    // Skip internal/frontend-only fields
-    if (k === '_manualCode' || k === '_manualShort' || k === 'createdAt' || k === 'defaultRateBasis' || k === 'defaultRateValue') continue;
-    result[snakeKey] = v;
-  }
-  return result;
-}
-
-function objectToCamel(obj: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    result[toCamel(k)] = v;
-  }
-  return result;
-}
-
-// Map DB row to frontend object, adding `active` alias for `is_active`
-function dbToFrontend(row: Record<string, any>): Record<string, any> {
-  const camel = objectToCamel(row);
-  if ('isActive' in camel) {
-    camel.active = camel.isActive;
-  }
-  return camel;
-}
-
-// Map frontend object to DB row
-function frontendToDb(obj: Record<string, any>, dataKey: keyof AppData): Record<string, any> {
-  const cleaned = { ...obj };
-  // Remove frontend-only fields
-  delete cleaned._manualCode;
-  delete cleaned.active; // use is_active instead
-  
-  const snake = objectToSnake(cleaned);
-  
-  // Convert empty strings to null — DB rejects '' for numeric columns
-  for (const key of Object.keys(snake)) {
-    if (snake[key] === '') snake[key] = null;
-  }
-  
-  // Map `active` → `is_active` if it was set
-  if ('active' in obj && obj.active !== undefined) {
-    snake.is_active = obj.active;
-  }
-  
-  return snake;
-}
 
 const defaultData: AppData = {
   users: [], companies: [], factories: [], shifts: [], workerTypes: [], rateMasters: [],
@@ -123,6 +37,11 @@ const defaultData: AppData = {
   printingOrders: [], printingColourways: [],
   stitchingOrders: [], stitchingColourways: [],
   entries: [],
+  workers: [],
+  quotations: [],
+  quotationLines: [],
+  invoices: [],
+  subcontractJobs: [],
 };
 
 export function generateId(): string {
@@ -168,7 +87,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         printingProducts, stitchingProducts,
         workerTypes, rateMasters,
         orderHeaders, orderRows, orderColourways,
-        entries, profiles,
+        entries, profiles, workers,
+        quotations, quotationLines,
+        invoices, subcontractJobs,
       ] = await Promise.all([
         supabase.from('factories').select('*').eq('company_id', companyId),
         supabase.from('buyers').select('*').eq('company_id', companyId),
@@ -182,6 +103,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         supabase.from('order_colourways').select('*'),
         supabase.from('production_entries').select('*').eq('company_id', companyId),
         supabase.from('profiles').select('*'),
+        supabase.from('workers').select('*').eq('company_id', companyId),
+        supabase.from('quotations').select('*').eq('company_id', companyId).order('date', { ascending: false }),
+        supabase.from('quotation_lines').select('*'),
+        supabase.from('invoices').select('*').eq('company_id', companyId).order('invoice_date', { ascending: false }),
+        supabase.from('subcontract_jobs').select('*').eq('company_id', companyId).order('send_date', { ascending: false }),
       ]);
 
       // Get factory IDs for filtering shifts/tables/lines
@@ -205,11 +131,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const allRows = (orderRows.data || []).map(dbToFrontend);
 
       // Merge order_rows data into each order (orderQty, fabricId, uom, etc. live in order_rows)
-      const rowByOrderId: Record<string, any> = {};
+      const rowByOrderId: Record<string, unknown> = {};
       allRows.forEach((r: any) => { rowByOrderId[r.orderId] = r; });
 
       const mergeOrderRow = (order: any) => {
-        const row = rowByOrderId[order.id];
+        const row = rowByOrderId[order.id] as Record<string, unknown> | undefined;
         if (!row) return order;
         return {
           ...order,
@@ -266,6 +192,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         stitchingOrders: stitchingOrders as any,
         stitchingColourways: stitchingColourways.map(mapColourway) as any,
         entries: (entries.data || []).map(dbToFrontend) as any,
+        workers: (workers.data || []).map(dbToFrontend) as any,
+        quotations: (quotations.data || []).map(dbToFrontend) as any,
+        quotationLines: (quotationLines.data || []).map(dbToFrontend) as any,
+        invoices: (invoices.data || []).map(dbToFrontend) as any,
+        subcontractJobs: (subcontractJobs.data || []).map(dbToFrontend) as any,
       });
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -292,11 +223,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const frontItem = item as any;
 
     // Build DB row
-    const dbRow: Record<string, any> = frontendToDb(frontItem, key);
+    const dbRow = frontendToDb(frontItem, key);
     
     // Add company_id for company-scoped tables
-    const companyTables = ['factories', 'buyers', 'fabrics', 'printing_products', 'stitching_products', 'worker_types', 'rate_masters', 'production_entries'];
-    if (companyTables.includes(tableName)) {
+    if (COMPANY_TABLES.includes(tableName)) {
       dbRow.company_id = companyId;
     }
 
@@ -312,16 +242,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       dbRow.module = key === 'printingOrders' ? 'printing' : 'stitching';
       dbRow.company_id = companyId;
 
-      const headerCols = ['company_id', 'module', 'internal_po', 'buyer_id', 'buyer_po',
-        'style', 'currency', 'target_end_date', 'buyer_delivery_date', 'status', 'remarks'];
-      const rowCols = ['product_id', 'fabric_id', 'fabric_width', 'uom', 'order_qty',
-        'chart_qty', 'rate_per_item', 'no_of_colours'];
-
-      const headerRow: Record<string, any> = {};
-      const orderRow: Record<string, any> = {};
+      const headerRow: Record<string, unknown> = {};
+      const orderRow: Record<string, unknown> = {};
       Object.entries(dbRow).forEach(([k, v]) => {
-        if (headerCols.includes(k)) headerRow[k] = v;
-        else if (rowCols.includes(k)) orderRow[k] = v;
+        if (ORDER_HEADER_COLS.includes(k)) headerRow[k] = v;
+        else if (ORDER_ROW_COLS.includes(k)) orderRow[k] = v;
       });
 
       const { data: newHeader, error: hErr } = await supabase
@@ -339,6 +264,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         [key]: [...prev[key], { ...frontItem, active: true }] as any,
       }));
+      await refreshData();
       return { error: null };
     }
 
@@ -358,8 +284,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     // Optimistically update local state
     setData(prev => ({ ...prev, [key]: [...prev[key], { ...frontItem, active: frontItem.active ?? frontItem.isActive ?? true }] } as AppData));
+    
+    // Refresh data to ensure synchronization with DB
+    await refreshData();
     return { error: null };
-  }, [companyId]);
+  }, [companyId, refreshData]);
 
   const addItems = useCallback(async <K extends keyof AppData>(key: K, items: AppData[K][number][]): Promise<{ error: string | null }> => {
     for (const item of items) {
@@ -392,8 +321,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       [key]: (prev[key] as any[]).map((item: any) => item.id === id ? { ...item, ...updates } : item),
     } as AppData));
+    
+    // Refresh data to ensure synchronization with DB
+    await refreshData();
     return { error: null };
-  }, []);
+  }, [refreshData]);
 
   const deleteItem = useCallback(async <K extends keyof AppData>(key: K, id: string): Promise<{ error: string | null }> => {
     const tableName = TABLE_MAP[key];
@@ -406,8 +338,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       [key]: (prev[key] as any[]).filter((item: any) => item.id !== id),
     } as AppData));
+    
+    // Refresh data to ensure synchronization with DB
+    await refreshData();
     return { error: null };
-  }, []);
+  }, [refreshData]);
 
   const getItems = useCallback(<K extends keyof AppData>(key: K): AppData[K] => data[key], [data]);
 

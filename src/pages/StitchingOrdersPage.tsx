@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment, useEffect } from 'react';
+import { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../integrations/supabase/client';
 import { useData } from '../context/DataContext';
@@ -64,18 +64,30 @@ export default function StitchingOrdersPage() {
 
   const [searchParams] = useSearchParams();
 
+  const nextPO = () => {
+    const nums = (data.stitchingOrders || []).map((o: any) => { const m = (o.internalPO ?? '').match(/PO-S-(\d+)/); return m ? parseInt(m[1]) : 0; });
+    return `PO-S-${String(Math.max(0, ...nums) + 1).padStart(4, '0')}`;
+  };
+
+  const handleAdd = () => {
+    setEditingId(null);
+    setForm({ buyerId: '', style: '', internalPO: nextPO(), buyerPO: '', currency: 'USD', targetEndDate: '', buyerDeliveryDate: '', remarks: '', status: 'Started' as OrderStatus });
+    setRows([emptyRow(0)]);
+    setDialogOpen(true);
+  };
+
   useEffect(() => {
     if (searchParams.get('action') === 'new') {
       handleAdd();
     }
-  }, []);
+  }, [searchParams, handleAdd]);
 
   const orders = data.stitchingOrders;
   const buyers = data.buyers.filter(b => b.active);
   const products = data.stitchingProducts.filter(p => p.active);
   const fabrics = data.fabrics.filter(f => f.active);
 
-  const getBuyer = (id: string) => { const b = data.buyers.find(x => x.id === id); return b ? `${b.code}${b.name ? ' - ' + b.name : ''}` : id; };
+  const getBuyer = useCallback((id: string) => { const b = data.buyers.find(x => x.id === id); return b ? `${b.code}${b.name ? ' - ' + b.name : ''}` : id; }, [data.buyers]);
 
   const entryCountMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -83,12 +95,12 @@ export default function StitchingOrdersPage() {
     return map;
   }, [data.entries]);
 
-  const getProgress = (orderId: string) => {
+  const getProgress = useCallback((orderId: string) => {
     const cws = data.stitchingColourways.filter(c => c.orderId === orderId);
     const totalOrdered = cws.reduce((s, c) => s + c.orderedQty, 0);
     const totalProduced = data.entries.filter(e => e.orderId === orderId).reduce((s, e) => s + e.outputQty, 0);
     return { totalOrdered, totalProduced, pct: totalOrdered > 0 ? (totalProduced / totalOrdered) * 100 : 0 };
-  };
+  }, [data.stitchingColourways, data.entries]);
 
   const filtered = useMemo(() => {
     return orders.filter(o => {
@@ -155,18 +167,6 @@ export default function StitchingOrdersPage() {
         rows: sorted.map(o => [o.internalPO || '—', getBuyer(o.buyerId), o.style || '—', String(o.orderQty || 0), o.status, o.buyerDeliveryDate || '—']),
       },
     ]);
-  };
-
-  const nextPO = () => {
-    const nums = orders.map(o => { const m = (o.internalPO ?? '').match(/PO-S-(\d+)/); return m ? parseInt(m[1]) : 0; });
-    return `PO-S-${String(Math.max(0, ...nums) + 1).padStart(4, '0')}`;
-  };
-
-  const handleAdd = () => {
-    setEditingId(null);
-    setForm({ buyerId: '', style: '', internalPO: nextPO(), buyerPO: '', currency: 'USD', targetEndDate: '', buyerDeliveryDate: '', remarks: '', status: 'Started' as OrderStatus });
-    setRows([emptyRow(0)]);
-    setDialogOpen(true);
   };
 
   const handleEdit = async (e: React.MouseEvent, order: any) => {
@@ -402,7 +402,7 @@ export default function StitchingOrdersPage() {
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };

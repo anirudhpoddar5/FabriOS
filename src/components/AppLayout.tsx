@@ -1,6 +1,7 @@
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { AppHeader } from '@/components/AppHeader';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { Outlet } from 'react-router-dom';
 
 export function AppLayout() {
@@ -10,10 +11,11 @@ export function AppLayout() {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <AppHeader />
-          <main className="flex-1 overflow-auto p-3 sm:p-4">
+          <main className="flex-1 overflow-auto p-3 sm:p-4 pb-16 md:pb-4">
             <Outlet />
           </main>
         </div>
+        <MobileBottomNav />
       </div>
     </SidebarProvider>
   );

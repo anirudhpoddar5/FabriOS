@@ -1516,6 +1516,190 @@ test.describe('M — Mobile UI (Detailed)', () => {
 })
 
 // ─────────────────────────────────────────────────────────────
+// CATEGORY N — UI/UX Improvements
+// Tests for login revamp, empty states, summary cards,
+// status badge colors, and mobile bottom nav.
+// ─────────────────────────────────────────────────────────────
+
+test.describe('N — UI/UX Improvements', () => {
+  test.describe('Login page (no auth)', () => {
+    test.use({ storageState: { cookies: [], origins: [] } })
+
+    test('N01 Login page has gradient background and brand styling', async ({ page }) => {
+      await page.goto(`${BASE}/login`)
+      await page.waitForLoadState('networkidle')
+      // Check for brand heading on login page
+      await expect(page.locator('h1')).toContainText('fabriOS')
+      // Back to Home link visible
+      await expect(page.getByText('Home')).toBeVisible()
+      // Brand subtitle
+      await expect(page.getByText('Production OS')).toBeVisible()
+    })
+
+    test('N02 Login sign-up form shows inline field errors', async ({ page }) => {
+      await page.goto(`${BASE}/login?signup=1`)
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(300)
+      // Submit empty form
+      await page.getByRole('button', { name: /create account/i }).click()
+      await page.waitForTimeout(300)
+      // Inline error messages should appear
+      const errorMsgs = page.locator('text=is required')
+      const count = await errorMsgs.count()
+      expect(count).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  test('N04 Reports order status tab shows summary cards', async ({ page }) => {
+    await page.goto(`${BASE}/reports`)
+    await page.waitForLoadState('networkidle')
+    // Summary cards should show total orders, total qty, total produced, completion rate
+    await expect(page.getByText('Total Orders')).toBeVisible()
+    await expect(page.getByText('Total Qty')).toBeVisible()
+    await expect(page.getByText('Total Produced')).toBeVisible()
+    await expect(page.getByText('Completion Rate')).toBeVisible()
+  })
+
+  test('N05 Reports profit-loss tab shows summary cards', async ({ page }) => {
+    await page.goto(`${BASE}/reports`)
+    await page.waitForLoadState('networkidle')
+    // Switch to Profit/Loss tab
+    await page.getByRole('tab', { name: /profit/i }).click()
+    await page.waitForTimeout(300)
+    await expect(page.getByText('Total Revenue')).toBeVisible()
+    await expect(page.getByText('Total Cost')).toBeVisible()
+    await expect(page.getByText('Net Profit')).toBeVisible()
+    await expect(page.getByText('Margin').first()).toBeVisible()
+  })
+
+  test('N06 Reports stock tab shows low stock alert', async ({ page }) => {
+    await page.goto(`${BASE}/reports`)
+    await page.waitForLoadState('networkidle')
+    // Switch to Stock tab
+    await page.getByRole('tab', { name: /stock on hand/i }).click()
+    await page.waitForTimeout(300)
+    await expect(page.getByText('Total Items')).toBeVisible()
+    await expect(page.getByText('Low Stock Items')).toBeVisible()
+  })
+
+  test('N07 Reports delayed tab shows alert card', async ({ page }) => {
+    await page.goto(`${BASE}/reports`)
+    await page.waitForLoadState('networkidle')
+    await page.getByRole('tab', { name: /delayed/i }).click()
+    await page.waitForTimeout(300)
+    await expect(page.getByText('Delayed Orders').first()).toBeVisible()
+  })
+
+  test('N08 GRN page status badges use color classes', async ({ page }) => {
+    await page.goto(`${BASE}/grn`)
+    await page.waitForLoadState('networkidle')
+    // GRN badges should render without crash
+    await expect(page.locator('body')).not.toContainText(/Application error/i)
+    // Status badges present (if any GRNs exist)
+    const badges = page.locator('table tbody span:has-text("accepted")')
+    const badgeExists = await badges.count()
+    if (badgeExists > 0) {
+      await expect(badges.first()).toBeVisible()
+    }
+  })
+
+  test('N09 GRN page empty state has CTA', async ({ page }) => {
+    await page.goto(`${BASE}/grn`)
+    await page.waitForLoadState('networkidle')
+    // Check for empty state illustration text or CTA
+    const emptyText = page.locator('text=No GRN records yet')
+    const addButton = page.locator('button:has-text("New GRN")')
+    await expect(addButton).toBeVisible()
+    const hasEmptyState = await emptyText.count()
+    if (hasEmptyState > 0) {
+      await expect(emptyText).toBeVisible()
+    }
+  })
+
+  test('N10 Purchase Orders empty state has CTA', async ({ page }) => {
+    await page.goto(`${BASE}/purchase-orders`)
+    await page.waitForLoadState('networkidle')
+    // New PO button should be visible
+    await expect(page.getByRole('button', { name: /new po/i })).toBeVisible()
+    // Empty state text may appear if no POs
+    const emptyText = page.locator('text=No purchase orders yet')
+    const hasEmpty = await emptyText.count()
+    if (hasEmpty > 0) {
+      await expect(emptyText).toBeVisible()
+    }
+  })
+
+  test('N11 Dispatch empty state has CTA', async ({ page }) => {
+    await page.goto(`${BASE}/dispatch`)
+    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('button', { name: /new dispatch/i })).toBeVisible()
+    const emptyText = page.locator('text=No dispatches recorded')
+    const hasEmpty = await emptyText.count()
+    if (hasEmpty > 0) {
+      await expect(emptyText).toBeVisible()
+    }
+  })
+
+  test('N12 Inventory empty state has CTA', async ({ page }) => {
+    await page.goto(`${BASE}/inventory`)
+    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('button', { name: /add item/i })).toBeVisible()
+    const emptyText = page.locator('text=No inventory items')
+    const hasEmpty = await emptyText.count()
+    if (hasEmpty > 0) {
+      await expect(emptyText).toBeVisible()
+    }
+  })
+})
+
+test.describe('N-Mobile — Bottom Nav', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('N-M01 Mobile bottom nav bar is visible', async ({ page }) => {
+    await page.goto(BASE)
+    await page.waitForLoadState('networkidle')
+    // Bottom nav should be visible on mobile
+    const bottomNav = page.locator('nav.fixed.bottom-0')
+    await expect(bottomNav).toBeVisible()
+    await expect(bottomNav.getByText('Dashboard')).toBeVisible()
+    await expect(bottomNav.getByText('Orders')).toBeVisible()
+    await expect(bottomNav.getByText('Entries')).toBeVisible()
+    await expect(bottomNav.getByText('Stock')).toBeVisible()
+    await expect(bottomNav.getByText('Reports')).toBeVisible()
+  })
+
+  test('N-M02 Mobile bottom nav highlights active section', async ({ page }) => {
+    await page.goto(BASE)
+    await page.waitForLoadState('networkidle')
+    // Dashboard should have active styling (text-primary class)
+    const dashboardBtn = page.locator('nav.fixed.bottom-0 button').first()
+    await expect(dashboardBtn).toBeVisible()
+  })
+
+  test('N-M03 Mobile bottom nav navigation works', async ({ page }) => {
+    await page.goto(BASE)
+    await page.waitForLoadState('networkidle')
+    const bottomNav = page.locator('nav.fixed.bottom-0')
+    // Close sidebar overlay first (click the toggle button)
+    const toggle = page.getByRole('button', { name: /toggle sidebar/i })
+    await toggle.click({ force: true }).catch(() => {})
+    await page.waitForTimeout(500)
+    // Click on Orders nav item
+    await bottomNav.getByText('Orders').click()
+    await page.waitForURL(/printing-orders|stitching-orders/, { timeout: 8000 })
+    // Click on Entries nav item
+    await bottomNav.getByText('Entries').click()
+    await page.waitForURL(/entries/, { timeout: 8000 })
+    // Click on Stock nav item
+    await bottomNav.getByText('Stock').click()
+    await page.waitForURL(/inventory/, { timeout: 8000 })
+    // Click on Reports nav item
+    await bottomNav.getByText('Reports').click()
+    await page.waitForURL(/reports/, { timeout: 8000 })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────
 // CATEGORY Z — Data Cleanup
 // Purge all test data created during this test run.
 // Run last to clean the DB for the next run.

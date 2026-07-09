@@ -1,7 +1,8 @@
 import {
   LayoutDashboard, Printer, Scissors, ClipboardList, BarChart3, Settings,
   Building2, Factory, Users, UserCircle, Shirt, Grid3X3, Columns3, Package, Box, ShoppingCart,
-  Warehouse, Truck, PackageCheck, FileText, Store, Layers, Gauge, Briefcase, HelpCircle
+  Warehouse, Truck, PackageCheck, FileText, Store, Layers, Gauge, Briefcase, HelpCircle,
+  CalendarCheck, Droplets, DollarSign, ArrowLeftRight
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -17,6 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 const settingsItems = [
   { title: 'Companies', url: '/settings/companies', icon: Building2 },
   { title: 'Factories & Shifts', url: '/settings/factories-shifts', icon: Factory },
+  { title: 'Worker Masters', url: '/settings/workers', icon: UserCircle },
   { title: 'Workers & Rates', url: '/settings/workers-rates', icon: Users },
   { title: 'Buyers', url: '/settings/buyers', icon: UserCircle },
   { title: 'Fabrics', url: '/settings/fabrics', icon: Shirt },
@@ -92,6 +94,14 @@ export function AppSidebar() {
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/quotations" className={linkClass} activeClassName={activeClass}>
+                    <FileText className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span>Quotations</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -110,9 +120,25 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
+                  <NavLink to="/attendance" className={linkClass} activeClassName={activeClass}>
+                    <CalendarCheck className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span>Attendance</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
                   <NavLink to="/production-control" className={linkClass} activeClassName={activeClass}>
                     <Gauge className="h-4 w-4 shrink-0" />
                     {!collapsed && <span>Control</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/subcontract-jobs" className={linkClass} activeClassName={activeClass}>
+                    <ArrowLeftRight className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span>Subcontract</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -137,6 +163,22 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 font-medium px-3">Finance</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/invoices" className={linkClass} activeClassName={activeClass}>
+                    <DollarSign className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span>Invoices / AR</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-sidebar-foreground/40 font-medium px-3">Inventory</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -145,6 +187,14 @@ export function AppSidebar() {
                   <NavLink to="/inventory" className={linkClass} activeClassName={activeClass}>
                     <Warehouse className="h-4 w-4 shrink-0" />
                     {!collapsed && <span>Stock</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/material-issues" className={linkClass} activeClassName={activeClass}>
+                    <Droplets className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span>Material Issues</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

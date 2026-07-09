@@ -46,7 +46,7 @@ setup('authenticate from scratch', async ({ page }) => {
   await page.goto('/login?signup=1');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(300);
-  await expect(page.locator('h2').filter({ hasText: 'Create account' })).toBeVisible({ timeout: 3000 });
+  await expect(page.locator('h2').filter({ hasText: /Create.*account/ })).toBeVisible({ timeout: 3000 });
 
   await page.getByPlaceholder('John Doe').fill('E2E Test User');
   await page.getByPlaceholder('you@company.com').fill(TEST_EMAIL);

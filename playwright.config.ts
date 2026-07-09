@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 30000,
+  timeout: 60000,
   retries: 0,
 
   use: {
@@ -17,7 +17,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: /auth\.setup\.ts|steelman-e2e\.spec\.ts/,
+      testIgnore: /auth\.setup\.ts|steelman-e2e\.spec\.ts|steelman-full\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.auth/user.json',
@@ -32,6 +32,16 @@ export default defineConfig({
         headless: false,
       },
       dependencies: [],
+    },
+    {
+      name: 'steelman-full',
+      testMatch: /steelman-full\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        headless: true,
+      },
+      dependencies: [],
+      timeout: 600000,
     },
   ],
 

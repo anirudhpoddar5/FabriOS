@@ -611,6 +611,33 @@ test('05 — Verify every page renders without errors', async ({ browser }) => {
     console.log(`  ${hasError ? '❌' : '✅'}  ${name}`);
   }
 
+  // Detail page drill-down: click first row to navigate to detail
+  const detailNavs = [
+    { list: `${BASE}/printing-orders`, linkText: /printing orders/i, clickText: '', detailPath: '/printing-orders/' },
+    { list: `${BASE}/purchase-orders`, linkText: /purchase orders/i, clickText: '', detailPath: '/purchase-orders/' },
+    { list: `${BASE}/bom`, linkText: /bom/i, clickText: '', detailPath: '/bom/' },
+    { list: `${BASE}/grn`, linkText: /grn/i, clickText: '', detailPath: '/grn/' },
+  ];
+  for (const nav of detailNavs) {
+    await page.goto(nav.list, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.waitForTimeout(1000);
+    const rows = page.locator('table tbody tr');
+    const count = await rows.count();
+    if (count > 0) {
+      const firstLink = rows.first().locator('a, td');
+      await rows.first().click();
+      await page.waitForTimeout(1000);
+      await expect(page).toHaveURL(new RegExp(nav.detailPath));
+      const detailBody = await page.locator('body').innerText().catch(() => '');
+      const detailOk = !/Application error|not found/i.test(detailBody);
+      results.push({ page: `${nav.list} → detail`, status: detailOk ? '✅ OK' : '❌ ERROR' });
+      console.log(`  ${detailOk ? '✅' : '❌'}  ${nav.list} → detail`);
+    } else {
+      results.push({ page: `${nav.list} → detail`, status: '⚠️ SKIP (no rows)' });
+      console.log(`  ⚠️  ${nav.list} → detail (no rows)`);
+    }
+  }
+
   const failed = results.filter(r => r.status.includes('❌'));
   if (failed.length) console.log(`\n⚠️  ${failed.length} page(s) had errors`);
   console.log(`\n✅ ${results.filter(r => r.status.includes('✅')).length}/${results.length} pages OK`);
@@ -677,4 +704,156 @@ test('06 — Invited user can sign in and use the app', async ({ browser }) => {
 
   await admin.auth.admin.deleteUser(invitedUserId);
   console.log('✅ Cleaned up invited user');
+});
+
+// ─────────────────────────────────────────────────────────────
+// TEST 7: Detail pages — print/download buttons, data display
+// ─────────────────────────────────────────────────────────────
+test('07 — Detail pages: order, PO, BOM, GRN with print/download', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const admin = getSupabaseAdmin();
+  const page = await browser.newPage({ storageState: AUTH_FILE });
+
+  const { data: profile } = await admin.from('profiles').select('company_id').eq('email', TEST_EMAIL).single();
+  const companyId = profile?.company_id;
+  if (!companyId) throw new Error('No company');
+
+  const { data: orders } = await admin.from('order_headers').select('id,internal_po').eq('company_id', companyId).limit(1);
+  const { data: pos } = await admin.from('purchase_orders').select('id,po_number').eq('company_id', companyId).limit(1);
+  const { data: boms } = await admin.from('bom_headers').select('id,title').eq('company_id', companyId).limit(1);
+  const { data: grns } = await admin.from('grn_headers').select('id,grn_number').eq('company_id', companyId).limit(1);
+
+  try {
+    // ── Order Detail ──
+    if (orders?.[0]) {
+      await goto(page, `${BASE}/printing-orders/${orders[0].id}`);
+      await noError(page);
+      await expect(page.getByText(orders[0].internal_po)).toBeVisible();
+      await expect(page.getByRole('button', { name: /print/i })).toBeVisible();
+      await expect(page.getByRole('button', { name: /csv/i })).toBeVisible();
+      await expect(page.getByText(/total output/i)).toBeVisible();
+      await expect(page.getByText(/colourway progress/i)).toBeVisible();
+      console.log('✅ Order detail: PO ref, print, CSV, output, colourways visible');
+    } else console.log('⚠️  Order detail: no orders');
+
+    // ── PO Detail ──
+    if (pos?.[0]) {
+      await goto(page, `${BASE}/purchase-orders/${pos[0].id}`);
+      await noError(page);
+      await expect(page.getByText(pos[0].po_number)).toBeVisible();
+      await expect(page.getByRole('button', { name: /print/i })).toBeVisible();
+      await expect(page.getByRole('button', { name: /csv/i })).toBeVisible();
+      await expect(page.getByText(/vendor details/i)).toBeVisible();
+      await expect(page.getByText(/line items/i)).toBeVisible();
+      console.log('✅ PO detail: PO #, print, CSV, vendor, lines visible');
+    } else console.log('⚠️  PO detail: no purchase orders');
+
+    // ── BOM Detail ──
+    if (boms?.[0]) {
+      await goto(page, `${BASE}/bom/${boms[0].id}`);
+      await noError(page);
+      await expect(page.getByRole('button', { name: /print/i })).toBeVisible();
+      await expect(page.getByRole('button', { name: /csv/i })).toBeVisible();
+      await expect(page.getByText(/material lines/i)).toBeVisible();
+      await expect(page.getByText(/bom details/i)).toBeVisible();
+      console.log('✅ BOM detail: print, CSV, lines, details visible');
+    } else console.log('⚠️  BOM detail: no BOMs');
+
+    // ── GRN Detail ──
+    if (grns?.[0]) {
+      await goto(page, `${BASE}/grn/${grns[0].id}`);
+      await noError(page);
+      await expect(page.getByText(grns[0].grn_number)).toBeVisible();
+      await expect(page.getByRole('button', { name: /print/i })).toBeVisible();
+      await expect(page.getByRole('button', { name: /csv/i })).toBeVisible();
+      await expect(page.getByText(/received items/i)).toBeVisible();
+      await expect(page.getByText(/receipt details/i)).toBeVisible();
+      console.log('✅ GRN detail: GRN #, print, CSV, items, details visible');
+    } else console.log('⚠️  GRN detail: no GRNs');
+
+  } finally {
+    await page.close();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// TEST 8: BOM/PO/GRN/Dispatch list pages — verify navigation, filters, print
+// ─────────────────────────────────────────────────────────────
+test('08 — BOM, PO, GRN, Dispatch list pages with filters and print', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const page = await browser.newPage({ storageState: AUTH_FILE });
+
+  try {
+    // ── Purchase Orders list ──
+    await goto(page, `${BASE}/purchase-orders`);
+    await noError(page);
+    await expect(page.getByText(/purchase orders/i)).toBeVisible();
+    const poTable = page.locator('table');
+    if (await poTable.locator('tr').count() > 1) {
+      const firstRow = poTable.locator('tr').nth(1);
+      await expect(firstRow).toBeVisible();
+      await firstRow.click();
+      await page.waitForURL(/\/purchase-orders\//, { timeout: 10_000 });
+      await noError(page);
+      await expect(page.getByRole('button', { name: /print/i })).toBeVisible();
+      await page.goBack();
+      await page.waitForLoadState('domcontentloaded');
+    }
+    console.log('✅ PO list: loads, row click navigates to detail');
+
+    // ── BOM list ──
+    await goto(page, `${BASE}/bom`);
+    await noError(page);
+    await expect(page.getByText(/bill of materials/i)).toBeVisible();
+    const bomTable = page.locator('table');
+    if (await bomTable.locator('tr').count() > 1) {
+      const firstRow = bomTable.locator('tr').nth(1);
+      await expect(firstRow).toBeVisible();
+      await firstRow.click();
+      await page.waitForURL(/\/bom\//, { timeout: 10_000 });
+      await noError(page);
+      await expect(page.getByRole('button', { name: /print/i })).toBeVisible();
+      await page.goBack();
+      await page.waitForLoadState('domcontentloaded');
+    }
+    console.log('✅ BOM list: loads, row click navigates to detail');
+
+    // ── GRN list ──
+    await goto(page, `${BASE}/grn`);
+    await noError(page);
+    await expect(page.getByText(/goods receipt/i)).toBeVisible();
+    const grnTable = page.locator('table');
+    if (await grnTable.locator('tr').count() > 1) {
+      const firstRow = grnTable.locator('tr').nth(1);
+      await expect(firstRow).toBeVisible();
+      await firstRow.click();
+      await page.waitForURL(/\/grn\//, { timeout: 10_000 });
+      await noError(page);
+      await expect(page.getByRole('button', { name: /print/i })).toBeVisible();
+      await page.goBack();
+      await page.waitForLoadState('domcontentloaded');
+    }
+    console.log('✅ GRN list: loads, row click navigates to detail');
+
+    // ── Dispatch list ──
+    await goto(page, `${BASE}/dispatch`);
+    await noError(page);
+    await expect(page.getByText(/dispatch/i)).toBeVisible();
+    console.log('✅ Dispatch list: loads without error');
+
+    // ── Stock Jobs list ──
+    await goto(page, `${BASE}/stock-jobs`);
+    await noError(page);
+    await expect(page.getByText(/stock jobs/i)).toBeVisible();
+    console.log('✅ Stock Jobs list: loads without error');
+
+    // ── Inventory list ──
+    await goto(page, `${BASE}/inventory`);
+    await noError(page);
+    await expect(page.getByText(/inventory/i)).toBeVisible();
+    console.log('✅ Inventory list: loads without error');
+
+  } finally {
+    await page.close();
+  }
 });

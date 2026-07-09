@@ -283,7 +283,7 @@ export default function GRNPage() {
   }, [pagination.pageItems]);
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   };
   const toggleSelectAll = () => {
     if (selectedIds.size === pagination.pageItems.length) setSelectedIds(new Set());
