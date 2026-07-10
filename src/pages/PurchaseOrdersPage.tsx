@@ -81,19 +81,38 @@ export default function PurchaseOrdersPage() {
 
   const savePO = useMutation({
     mutationFn: async () => {
-      const { error, data: po } = await supabase.from('purchase_orders')
-        .insert({ po_number: form.po_number, vendor_id: form.vendor_id, po_date: form.po_date, status: 'draft', source_type: form.source_type || 'manual', currency: form.currency || 'USD', remarks: form.remarks, company_id: companyId })
-        .select().single();
+      const payload: any = {
+        header: {
+          po_number: form.po_number,
+          vendor_id: form.vendor_id,
+          po_date: form.po_date,
+          status: form.status || 'draft',
+          source_type: form.source_type || 'manual',
+          currency: form.currency || 'USD',
+          total_amount: lines.reduce((s, l) => s + (l.qty_ordered || 0) * (l.rate || 0), 0),
+          order_id: form.order_id || null,
+          remarks: form.remarks || null,
+        },
+        lines: lines
+          .filter((l: any) => l.item_name && l.qty_ordered > 0)
+          .map((l: any, idx: number) => ({
+            id: l.id || crypto.randomUUID(),
+            item_name: l.item_name,
+            item_id: l.item_id || null,
+            uom: l.uom || 'pcs',
+            qty_ordered: Number(l.qty_ordered) || 0,
+            rate: Number(l.rate) || 0,
+            amount: (Number(l.qty_ordered) || 0) * (Number(l.rate) || 0),
+            remarks: l.remarks || null,
+            sort_order: idx,
+          })),
+      };
+
+      const { data, error } = await supabase.rpc('save_po_with_lines', { payload });
       if (error) throw error;
-      const validLines = lines.filter(l => l.item_name && l.qty_ordered > 0);
-      if (validLines.length > 0) {
-        const { error: lineError } = await supabase.from('purchase_order_lines')
-          .insert(validLines.map(l => ({ po_id: po.id, item_id: l.item_id || null, item_name: l.item_name, uom: l.uom || 'meters', qty_ordered: l.qty_ordered, rate: l.rate || 0, amount: (l.qty_ordered || 0) * (l.rate || 0) })));
-        if (lineError) throw lineError;
-      }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['purchase_orders'] }); toast.success('PO created'); setDialogOpen(false); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => toast.error(`Purchase order was not saved: ${err.message}`),
   });
 
   const handleAdd = () => {

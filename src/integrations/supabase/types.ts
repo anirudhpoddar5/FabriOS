@@ -2408,6 +2408,7 @@ export type Database = {
         Args: { payload: Json }
         Returns: string
       }
+      save_po_with_lines: { Args: { payload: Json }; Returns: string }
       save_production_entry_with_consumption: {
         Args: { payload: Json }
         Returns: Json
