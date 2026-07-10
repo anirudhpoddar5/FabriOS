@@ -14,6 +14,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance: {
+        Row: {
+          check_in: string | null
+          check_out: string | null
+          company_id: string
+          created_at: string
+          date: string
+          hours_worked: number | null
+          id: string
+          notes: string | null
+          overtime_hours: number | null
+          shift_id: string | null
+          status: string
+          worker_id: string
+        }
+        Insert: {
+          check_in?: string | null
+          check_out?: string | null
+          company_id: string
+          created_at?: string
+          date: string
+          hours_worked?: number | null
+          id?: string
+          notes?: string | null
+          overtime_hours?: number | null
+          shift_id?: string | null
+          status?: string
+          worker_id: string
+        }
+        Update: {
+          check_in?: string | null
+          check_out?: string | null
+          company_id?: string
+          created_at?: string
+          date?: string
+          hours_worked?: number | null
+          id?: string
+          notes?: string | null
+          overtime_hours?: number | null
+          shift_id?: string | null
+          status?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bom_headers: {
         Row: {
           bom_type: string
@@ -126,84 +193,6 @@ export type Database = {
             columns: ["bom_id"]
             isOneToOne: false
             referencedRelation: "bom_headers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      production_material_consumptions: {
-        Row: {
-          actual_qty: number
-          bom_line_id: string
-          company_id: string
-          created_at: string
-          id: string
-          is_overridden: boolean
-          item_id: string
-          order_id: string
-          planned_qty: number
-          production_entry_id: string
-          uom: string | null
-        }
-        Insert: {
-          actual_qty?: number
-          bom_line_id: string
-          company_id: string
-          created_at?: string
-          id?: string
-          is_overridden?: boolean
-          item_id: string
-          order_id: string
-          planned_qty?: number
-          production_entry_id: string
-          uom?: string | null
-        }
-        Update: {
-          actual_qty?: number
-          bom_line_id?: string
-          company_id?: string
-          created_at?: string
-          id?: string
-          is_overridden?: boolean
-          item_id?: string
-          order_id?: string
-          planned_qty?: number
-          production_entry_id?: string
-          uom?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "production_material_consumptions_bom_line_id_fkey"
-            columns: ["bom_line_id"]
-            isOneToOne: false
-            referencedRelation: "bom_lines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_material_consumptions_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_material_consumptions_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_material_consumptions_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "order_headers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "production_material_consumptions_production_entry_id_fkey"
-            columns: ["production_entry_id"]
-            isOneToOne: false
-            referencedRelation: "production_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -676,6 +665,178 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          buyer_id: string | null
+          company_id: string
+          created_at: string
+          currency: string
+          dispatch_id: string | null
+          due_date: string
+          grand_total: number | null
+          id: string
+          invoice_date: string
+          invoice_number: string
+          notes: string | null
+          order_id: string | null
+          payment_date: string | null
+          payment_mode: string | null
+          status: string
+          subtotal: number
+          tax_amount: number | null
+          tax_percent: number | null
+          updated_at: string
+        }
+        Insert: {
+          buyer_id?: string | null
+          company_id: string
+          created_at?: string
+          currency?: string
+          dispatch_id?: string | null
+          due_date: string
+          grand_total?: number | null
+          id?: string
+          invoice_date?: string
+          invoice_number: string
+          notes?: string | null
+          order_id?: string | null
+          payment_date?: string | null
+          payment_mode?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number | null
+          tax_percent?: number | null
+          updated_at?: string
+        }
+        Update: {
+          buyer_id?: string | null
+          company_id?: string
+          created_at?: string
+          currency?: string
+          dispatch_id?: string | null
+          due_date?: string
+          grand_total?: number | null
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          notes?: string | null
+          order_id?: string | null
+          payment_date?: string | null
+          payment_mode?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number | null
+          tax_percent?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "buyers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "dispatch_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_headers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_issues: {
+        Row: {
+          company_id: string
+          created_at: string
+          date: string
+          id: string
+          item_id: string | null
+          item_name: string
+          notes: string | null
+          order_id: string | null
+          qty_consumed: number
+          qty_issued: number
+          qty_wasted: number | null
+          row_id: string | null
+          uom: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          date?: string
+          id?: string
+          item_id?: string | null
+          item_name: string
+          notes?: string | null
+          order_id?: string | null
+          qty_consumed?: number
+          qty_issued?: number
+          qty_wasted?: number | null
+          row_id?: string | null
+          uom?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          date?: string
+          id?: string
+          item_id?: string | null
+          item_name?: string
+          notes?: string | null
+          order_id?: string | null
+          qty_consumed?: number
+          qty_issued?: number
+          qty_wasted?: number | null
+          row_id?: string | null
+          uom?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_issues_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_issues_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_issues_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_headers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_issues_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "order_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       onboarding_progress: {
         Row: {
           buyers_done: boolean
@@ -847,6 +1008,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_headers_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
             referencedColumns: ["id"]
           },
         ]
@@ -1170,6 +1338,84 @@ export type Database = {
           },
         ]
       }
+      production_material_consumptions: {
+        Row: {
+          actual_qty: number
+          bom_line_id: string
+          company_id: string
+          created_at: string
+          id: string
+          is_overridden: boolean
+          item_id: string
+          order_id: string
+          planned_qty: number
+          production_entry_id: string
+          uom: string | null
+        }
+        Insert: {
+          actual_qty?: number
+          bom_line_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_overridden?: boolean
+          item_id: string
+          order_id: string
+          planned_qty?: number
+          production_entry_id: string
+          uom?: string | null
+        }
+        Update: {
+          actual_qty?: number
+          bom_line_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_overridden?: boolean
+          item_id?: string
+          order_id?: string
+          planned_qty?: number
+          production_entry_id?: string
+          uom?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_material_consumptions_bom_line_id_fkey"
+            columns: ["bom_line_id"]
+            isOneToOne: false
+            referencedRelation: "bom_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_headers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_production_entry_id_fkey"
+            columns: ["production_entry_id"]
+            isOneToOne: false
+            referencedRelation: "production_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           approval_status: string
@@ -1355,6 +1601,119 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotation_lines: {
+        Row: {
+          amount: number | null
+          description: string
+          id: string
+          product_id: string | null
+          qty: number
+          quotation_id: string
+          rate: number
+          sort_order: number
+          uom: string
+        }
+        Insert: {
+          amount?: number | null
+          description: string
+          id?: string
+          product_id?: string | null
+          qty?: number
+          quotation_id: string
+          rate?: number
+          sort_order?: number
+          uom?: string
+        }
+        Update: {
+          amount?: number | null
+          description?: string
+          id?: string
+          product_id?: string | null
+          qty?: number
+          quotation_id?: string
+          rate?: number
+          sort_order?: number
+          uom?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_lines_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotations: {
+        Row: {
+          buyer_id: string | null
+          company_id: string
+          created_at: string
+          currency: string
+          date: string
+          id: string
+          quotation_number: string
+          remarks: string | null
+          status: string
+          subtotal: number
+          tax_amount: number | null
+          tax_percent: number | null
+          total: number | null
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          buyer_id?: string | null
+          company_id: string
+          created_at?: string
+          currency?: string
+          date?: string
+          id?: string
+          quotation_number: string
+          remarks?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number | null
+          tax_percent?: number | null
+          total?: number | null
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          buyer_id?: string | null
+          company_id?: string
+          created_at?: string
+          currency?: string
+          date?: string
+          id?: string
+          quotation_number?: string
+          remarks?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number | null
+          tax_percent?: number | null
+          total?: number | null
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotations_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "buyers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1739,6 +2098,94 @@ export type Database = {
           },
         ]
       }
+      subcontract_jobs: {
+        Row: {
+          amount: number | null
+          company_id: string
+          created_at: string
+          expected_return_date: string | null
+          id: string
+          job_number: string
+          notes: string | null
+          order_id: string | null
+          process: string
+          product_description: string | null
+          qty_balance: number | null
+          qty_received: number
+          qty_sent: number
+          rate: number
+          received_date: string | null
+          send_date: string
+          status: string
+          subcontractor_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount?: number | null
+          company_id: string
+          created_at?: string
+          expected_return_date?: string | null
+          id?: string
+          job_number: string
+          notes?: string | null
+          order_id?: string | null
+          process: string
+          product_description?: string | null
+          qty_balance?: number | null
+          qty_received?: number
+          qty_sent?: number
+          rate?: number
+          received_date?: string | null
+          send_date?: string
+          status?: string
+          subcontractor_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number | null
+          company_id?: string
+          created_at?: string
+          expected_return_date?: string | null
+          id?: string
+          job_number?: string
+          notes?: string | null
+          order_id?: string | null
+          process?: string
+          product_description?: string | null
+          qty_balance?: number | null
+          qty_received?: number
+          qty_sent?: number
+          rate?: number
+          received_date?: string | null
+          send_date?: string
+          status?: string
+          subcontractor_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_jobs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_headers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_jobs_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       uom_master: {
         Row: {
           code: string
@@ -1879,6 +2326,70 @@ export type Database = {
           },
         ]
       }
+      workers: {
+        Row: {
+          company_id: string
+          created_at: string
+          employee_code: string
+          factory_id: string | null
+          hourly_rate: number | null
+          id: string
+          is_active: boolean
+          name: string
+          phone: string | null
+          updated_at: string
+          worker_type_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          employee_code: string
+          factory_id?: string | null
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean
+          name: string
+          phone?: string | null
+          updated_at?: string
+          worker_type_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          employee_code?: string
+          factory_id?: string | null
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone?: string | null
+          updated_at?: string
+          worker_type_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workers_factory_id_fkey"
+            columns: ["factory_id"]
+            isOneToOne: false
+            referencedRelation: "factories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workers_worker_type_id_fkey"
+            columns: ["worker_type_id"]
+            isOneToOne: false
+            referencedRelation: "worker_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1891,6 +2402,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      save_order_with_rows_and_colourways: {
+        Args: { payload: Json }
+        Returns: string
       }
       save_production_entry_with_consumption: {
         Args: { payload: Json }

@@ -213,8 +213,9 @@ export default function PrintingOrdersPage() {
 
     setSaving(true);
     try {
-      if (editingId) {
-        const { error: hErr } = await supabase.from('order_headers').update({
+      const payload: any = {
+        module: 'printing',
+        header: {
           buyer_id: form.buyerId,
           buyer_po: form.buyerPO || null,
           style: form.style,
@@ -223,100 +224,44 @@ export default function PrintingOrdersPage() {
           buyer_delivery_date: form.buyerDeliveryDate || null,
           status: form.status,
           remarks: form.remarks || null,
-        }).eq('id', editingId);
-        if (hErr) { toast.error(`Failed: ${hErr.message}`); return; }
-
-        const { data: oldRows } = await supabase.from('order_rows').select('id').eq('order_id', editingId);
-        for (const old of oldRows || []) {
-          await supabase.from('order_colourways').delete().eq('order_row_id', old.id);
-        }
-        await supabase.from('order_rows').delete().eq('order_id', editingId);
-
-        for (let ri = 0; ri < rows.length; ri++) {
-          const r = rows[ri];
-          const rowId = generateId();
-          const { error: rrErr } = await supabase.from('order_rows').insert({
-            id: rowId, order_id: editingId,
-            product_id: r.printingProductId || null,
-            fabric_id: r.fabricId || null,
-            fabric_width: r.fabricWidth || null,
-            uom: r.uom,
-            order_qty: Number(r.orderQty) || 0,
-            chart_qty: Number(r.chartQty) || 0,
-            rate_per_item: Number(r.ratePerItem) || 0,
-            no_of_colours: Number(r.noOfColours) || 0,
-            sort_order: ri,
-          });
-          if (rrErr) { toast.error(`Failed: ${rrErr.message}`); return; }
-
-          const validCws = (r.colours || []).filter((c: any) => c.colourName);
-          for (let ci = 0; ci < validCws.length; ci++) {
-            const c = validCws[ci];
-            const { error: ccErr } = await supabase.from('order_colourways').insert({
-              id: c.id || generateId(),
-              order_row_id: rowId,
-              colour_name: c.colourName,
-              ordered_qty: Number(c.orderedQty) || 0,
-              uom: c.uom || r.uom,
-              notes: c.notes || null,
-              sort_order: ci,
-            });
-            if (ccErr) { toast.error(`Failed: ${ccErr.message}`); return; }
-          }
-        }
-        toast.success('Order updated');
-      } else {
-        if (!companyId) { toast.error('No company found'); return; }
-        const orderId = generateId();
-
-        const { error: hErr } = await supabase.from('order_headers').insert({
-          id: orderId, company_id: companyId, module: 'printing',
           internal_po: form.internalPO,
-          buyer_id: form.buyerId,
-          buyer_po: form.buyerPO || null,
-          style: form.style, currency: form.currency,
-          target_end_date: form.targetEndDate || null,
-          buyer_delivery_date: form.buyerDeliveryDate || null,
-          status: form.status || 'Started',
-          remarks: form.remarks || null,
-        });
-        if (hErr) { toast.error(`Failed: ${hErr.message}`); return; }
-
-        for (let ri = 0; ri < rows.length; ri++) {
-          const r = rows[ri];
-          const orderRowId = generateId();
-          const { error: rrErr } = await supabase.from('order_rows').insert({
-            id: orderRowId, order_id: orderId,
-            product_id: r.printingProductId || null,
-            fabric_id: r.fabricId || null,
-            fabric_width: r.fabricWidth || null,
-            uom: r.uom,
-            order_qty: Number(r.orderQty) || 0,
-            chart_qty: Number(r.chartQty) || 0,
-            rate_per_item: Number(r.ratePerItem) || 0,
-            no_of_colours: Number(r.noOfColours) || 0,
-            sort_order: ri,
-          });
-          if (rrErr) { toast.error(`Failed: ${rrErr.message}`); return; }
-
-          const validCws = (r.colours || []).filter((c: any) => c.colourName);
-          for (let ci = 0; ci < validCws.length; ci++) {
-            const c = validCws[ci];
-            const { error: ccErr } = await supabase.from('order_colourways').insert({
+        },
+        rows: rows.map((r: any, ri: number) => ({
+          id: r.id || generateId(),
+          product_id: r.printingProductId || null,
+          fabric_id: r.fabricId || null,
+          fabric_width: r.fabricWidth || null,
+          uom: r.uom,
+          order_qty: Number(r.orderQty) || 0,
+          chart_qty: Number(r.chartQty) || 0,
+          rate_per_item: Number(r.ratePerItem) || 0,
+          no_of_colours: Number(r.noOfColours) || 0,
+          sort_order: ri,
+          colourways: (r.colours || [])
+            .filter((c: any) => c.colourName)
+            .map((c: any, ci: number) => ({
               id: c.id || generateId(),
-              order_row_id: orderRowId,
               colour_name: c.colourName,
               ordered_qty: Number(c.orderedQty) || 0,
               uom: c.uom || r.uom,
+              size: null,
               notes: c.notes || null,
               sort_order: ci,
-            });
-            if (ccErr) { toast.error(`Failed: ${ccErr.message}`); return; }
-          }
-        }
-        toast.success('Order created');
+            })),
+        })),
+      };
+
+      if (editingId) {
+        payload.id = editingId;
       }
 
+      const { data, error } = await supabase.rpc('save_order_with_rows_and_colourways', { payload });
+      if (error) {
+        toast.error(`Order was not saved: ${error.message}`);
+        return;
+      }
+
+      toast.success(editingId ? 'Order updated' : 'Order created');
       await refreshData();
       setDialogOpen(false);
       clearDraft();
