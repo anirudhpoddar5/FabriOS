@@ -2392,7 +2392,26 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      order_cost_summary: {
+        Row: {
+          order_id: string
+          company_id: string
+          order_status: string
+          planned_material_cost: number
+          actual_material_cost: number
+          actual_labour_cost: number
+          planned_total_cost: number
+          actual_total_cost: number
+          produced_qty: number
+          actual_cost_per_piece: number
+          planned_cost_per_piece: number
+          variance_amount: number
+          variance_per_piece: number
+        }
+        Insert: {}
+        Update: {}
+        Relationships: []
+      }
     }
     Functions: {
       get_user_company_id: { Args: never; Returns: string }

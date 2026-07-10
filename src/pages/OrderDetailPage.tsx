@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { ArrowLeft, Package, DollarSign, TrendingUp, Calendar, AlertTriangle, Printer, Download, Truck, Edit } from 'lucide-react';
+import { ArrowLeft, Package, DollarSign, TrendingUp, Calendar, AlertTriangle, Printer, Download, Truck, Edit, IndianRupee } from 'lucide-react';
 import { getOrderBadge } from '@/lib/order-status';
 import { printDetailPage } from '@/lib/pdf-export';
 import { toast } from 'sonner';
@@ -41,6 +41,15 @@ export default function OrderDetailPage() {
   const [correctingRecord, setCorrectingRecord] = useState<ConsumptionRecord | null>(null);
   const [correctionValue, setCorrectionValue] = useState<string>('');
   const [savingCorrection, setSavingCorrection] = useState(false);
+  const [orderCost, setOrderCost] = useState<{
+    planned_total_cost: number;
+    actual_total_cost: number;
+    actual_cost_per_piece: number;
+    planned_cost_per_piece: number;
+    variance_amount: number;
+    variance_per_piece: number;
+    produced_qty: number;
+  } | null>(null);
 
   const isPrinting = location.pathname.startsWith('/printing-orders');
   const module = isPrinting ? 'printing' : 'stitching';
@@ -68,6 +77,9 @@ export default function OrderDetailPage() {
       if (d) setRows(d);
     });
     fetchConsumptions();
+    supabase.from('order_cost_summary').select('*').eq('order_id', id).single().then(({ data: d }) => {
+      if (d) setOrderCost(d);
+    });
   }, [id, companyId]);
 
   async function fetchConsumptions() {
@@ -544,6 +556,72 @@ export default function OrderDetailPage() {
                   })()}
                 </TableBody>
               </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cost Summary */}
+      {orderCost && (
+        <Card className="mt-4">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <IndianRupee className="h-4 w-4" /> Cost Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              <div className="rounded-lg border p-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Planned Total</div>
+                <div className="text-sm font-semibold font-mono">₹{orderCost.planned_total_cost.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Actual Total</div>
+                <div className={`text-sm font-semibold font-mono ${orderCost.actual_total_cost > orderCost.planned_total_cost ? 'text-destructive' : 'text-success'}`}>
+                  ₹{orderCost.actual_total_cost.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </div>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Cost/Piece</div>
+                <div className="text-sm font-semibold font-mono">
+                  {orderCost.produced_qty > 0 ? (
+                    <span>₹{orderCost.actual_cost_per_piece.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                  {orderCost.produced_qty > 0 && orderCost.planned_cost_per_piece > 0 && (
+                    <span className={`text-[10px] ml-1 ${orderCost.actual_cost_per_piece <= orderCost.planned_cost_per_piece ? 'text-success' : 'text-destructive'}`}>
+                      (plan: ₹{orderCost.planned_cost_per_piece.toFixed(2)})
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Variance</div>
+                <div className="text-sm font-semibold font-mono">
+                  {orderCost.produced_qty > 0 ? (
+                    <span className={orderCost.variance_amount <= 0 ? 'text-success' : 'text-destructive'}>
+                      {orderCost.variance_amount > 0 ? '+' : ''}₹{orderCost.variance_amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              {orderCost.produced_qty > 0 && orderCost.actual_cost_per_piece > orderCost.planned_cost_per_piece && (
+                <span className="text-destructive font-medium flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  ₹{orderCost.variance_per_piece.toFixed(2)}/piece over plan
+                </span>
+              )}
+              {orderCost.produced_qty > 0 && orderCost.actual_cost_per_piece <= orderCost.planned_cost_per_piece && (
+                <span className="text-success font-medium">Cost is on plan</span>
+              )}
+              {orderCost.produced_qty === 0 && (
+                <span className="text-muted-foreground">No production recorded yet — cost data will appear once entries are logged.</span>
+              )}
             </div>
           </CardContent>
         </Card>

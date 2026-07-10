@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Printer, Scissors, ClipboardList, DollarSign, Package, AlertTriangle,
   Truck, ShoppingCart, Warehouse, Factory, Plus, TrendingUp, Clock, Layers, Building2, Droplets,
-  ArrowLeftRight, Circle
+  ArrowLeftRight, Circle, IndianRupee
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { GuidedTour } from '@/components/GuidedTour';
@@ -89,6 +89,16 @@ function DashboardContent() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data } = await supabase.from('material_issues').select('*').eq('company_id', companyId);
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  const { data: costSummaries = [] } = useQuery({
+    queryKey: ['cost_summary_dash', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('order_cost_summary').select('*').eq('company_id', companyId);
       return data || [];
     },
     enabled: !!companyId,
@@ -385,6 +395,56 @@ function DashboardContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Over-Plan Exception */}
+      {costSummaries.filter((c: any) =>
+        c.produced_qty > 0 &&
+        c.actual_cost_per_piece > c.planned_cost_per_piece &&
+        c.variance_per_piece >= 1 &&
+        c.planned_cost_per_piece > 0 &&
+        ((c.actual_cost_per_piece - c.planned_cost_per_piece) / c.planned_cost_per_piece * 100) >= 5
+      ).length > 0 && (() => {
+        const overPlan = costSummaries
+          .filter((c: any) =>
+            c.produced_qty > 0 &&
+            c.actual_cost_per_piece > c.planned_cost_per_piece &&
+            c.variance_per_piece >= 1 &&
+            c.planned_cost_per_piece > 0 &&
+            ((c.actual_cost_per_piece - c.planned_cost_per_piece) / c.planned_cost_per_piece * 100) >= 5
+          )
+          .sort((a: any, b: any) => b.variance_per_piece - a.variance_per_piece)
+          .slice(0, 5);
+        return (
+          <Card className="mb-5 border-orange-200 dark:border-orange-900 bg-orange-50/60 dark:bg-orange-950/20">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-orange-500 text-white">
+                  <IndianRupee className="h-3 w-3" />
+                </div>
+                <span className="text-xs font-semibold text-orange-700 dark:text-orange-400">Cost Exceptions — Over Plan</span>
+                <Badge variant="outline" className="text-[9px] h-4 border-orange-300 text-orange-700">{overPlan.length} orders</Badge>
+              </div>
+              <div className="space-y-1">
+                {overPlan.map((c: any) => {
+                  const order = [...data.printingOrders, ...data.stitchingOrders].find((o: any) => o.id === c.order_id);
+                  return (
+                    <div key={c.order_id} className="flex items-center justify-between text-xs px-1 py-0.5 rounded hover:bg-orange-100/50 dark:hover:bg-orange-900/20 cursor-pointer"
+                      onClick={() => { const m = order?.module || 'printing'; navigate(`/${m === 'stitching' ? 'stitching-orders' : 'printing-orders'}/${c.order_id}`); }}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium truncate">{order?.internalPO || c.order_id.slice(0, 8)}</span>
+                        <span className="text-muted-foreground">plan: ₹{c.planned_cost_per_piece.toFixed(2)}/pc</span>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400">
+                        ₹{c.variance_per_piece.toFixed(2)}/pc over plan
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Order Visibility Board */}
       {(() => {
