@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
@@ -11,10 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Printer, Scissors, ClipboardList, DollarSign, Package, AlertTriangle,
   Truck, ShoppingCart, Warehouse, Factory, Plus, TrendingUp, Clock, Layers, Building2, Droplets,
-  ArrowLeftRight
+  ArrowLeftRight, Circle
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { GuidedTour } from '@/components/GuidedTour';
+import { getOrderHealth, type OrderHealthState } from '@/lib/order-health';
+
+const ORDER_HEALTH_CONFIG: Record<OrderHealthState, { label: string; badge: string; bg: string; border: string; text: string; dot: string }> = {
+  red: { label: 'Late', badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400', bg: 'bg-red-50/40 dark:bg-red-950/10', border: 'border-red-200 dark:border-red-900', text: 'text-red-600', dot: 'bg-red-500' },
+  amber: { label: 'At Risk', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400', bg: 'bg-amber-50/40 dark:bg-amber-950/10', border: 'border-amber-200 dark:border-amber-800', text: 'text-amber-600', dot: 'bg-amber-500' },
+  grey: { label: 'Not Started', badge: 'bg-gray-100 text-gray-600 dark:bg-gray-800/40 dark:text-gray-400', bg: 'bg-gray-50/40 dark:bg-gray-900/10', border: 'border-gray-200 dark:border-gray-700', text: 'text-gray-500', dot: 'bg-gray-400' },
+  green: { label: 'On Track', badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400', bg: 'bg-green-50/40 dark:bg-green-950/10', border: 'border-green-200 dark:border-green-800', text: 'text-green-600', dot: 'bg-green-500' },
+};
 
 export default function DashboardPage() {
   return (
@@ -31,6 +39,7 @@ function DashboardContent() {
   const navigate = useNavigate();
   const companyId = profile?.company_id;
   const today = new Date().toISOString().slice(0, 10);
+  const [filterHealthState, setFilterHealthState] = useState<OrderHealthState | null>(null);
 
   const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const formattedDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -376,6 +385,123 @@ function DashboardContent() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Order Visibility Board */}
+      {(() => {
+        const allActiveOrders = [
+          ...(showP ? data.printingOrders : []),
+          ...(showS ? data.stitchingOrders : []),
+        ].filter((o: any) => o.status === 'Started');
+        const allCws = [...data.printingColourways, ...data.stitchingColourways];
+        const allOrderRows = data.orderRows || [];
+
+        const orderHealthMap = new Map<string, ReturnType<typeof getOrderHealth>>();
+        for (const o of allActiveOrders) {
+          const health = getOrderHealth(o, allCws, filteredEntries, today);
+          orderHealthMap.set(o.id, health);
+        }
+
+        const sections: { state: OrderHealthState; orders: any[] }[] = [
+          { state: 'red', orders: [] },
+          { state: 'amber', orders: [] },
+          { state: 'grey', orders: [] },
+          { state: 'green', orders: [] },
+        ];
+        for (const o of allActiveOrders) {
+          const h = orderHealthMap.get(o.id)!;
+          const section = sections.find(s => s.state === h.state);
+          if (section) section.orders.push({ ...o, health: h });
+        }
+
+        const activeSections = filterHealthState
+          ? sections.filter(s => s.state === filterHealthState)
+          : sections.filter(s => s.orders.length > 0);
+
+        if (activeSections.length === 0) return null;
+
+        return (
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Layers className="h-3.5 w-3.5" /> Order Visibility Board
+              </h2>
+              {filterHealthState && (
+                <Button variant="ghost" size="sm" className="text-[10px] h-6" onClick={() => setFilterHealthState(null)}>
+                  Clear filter
+                </Button>
+              )}
+            </div>
+            <div className="space-y-4">
+              {activeSections.map(({ state, orders }) => {
+                const cfg = ORDER_HEALTH_CONFIG[state];
+                return (
+                  <Card key={state} className={`border ${cfg.border} ${cfg.bg}`}>
+                    <CardContent className="p-3">
+                      <div
+                        className="flex items-center gap-2 mb-2 cursor-pointer select-none"
+                        onClick={() => setFilterHealthState(filterHealthState === state ? null : state)}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
+                        <span className={`text-xs font-semibold ${cfg.text}`}>{cfg.label}</span>
+                        <Badge variant="outline" className="text-[9px] h-4 ml-1">{orders.length}</Badge>
+                        <span className="text-[9px] text-muted-foreground ml-auto">
+                          {filterHealthState !== state ? 'Click to filter' : 'Showing only this group'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {orders.map((o: any) => {
+                          const h = o.health;
+                          const rowCount = allOrderRows.filter((r: any) => r.orderId === o.id).length;
+                          const colourCount = allCws.filter((c: any) => c.orderId === o.id).length;
+                          const pct = h.orderedQty > 0 ? Math.min((h.producedQty / h.orderedQty) * 100, 100) : 0;
+                          const daysUntilDue = h.daysUntilDue;
+                          const isLate = h.state === 'red';
+                          const isDue = daysUntilDue !== null && daysUntilDue <= 0;
+                          return (
+                            <div
+                              key={o.id}
+                              className="cursor-pointer rounded-lg border border-border/60 bg-card hover:shadow-sm transition-all p-2.5"
+                              onClick={() => navigate(`/${o.module === 'printing' ? 'printing-orders' : 'stitching-orders'}/${o.id}`)}
+                            >
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                                  <span className="text-[11px] font-semibold truncate">{o.internalPO}</span>
+                                </div>
+                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cfg.badge}`}>
+                                  {daysUntilDue !== null && daysUntilDue < 0 ? `${Math.abs(daysUntilDue)}d overdue` : daysUntilDue !== null && daysUntilDue <= 0 ? 'Due today' : daysUntilDue !== null && daysUntilDue <= 2 ? `${daysUntilDue}d left` : daysUntilDue !== null ? `${daysUntilDue}d left` : 'No due date'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-1.5">
+                                <span>{rowCount} {rowCount === 1 ? 'item' : 'items'}</span>
+                                {colourCount > 0 && <span>{colourCount} {colourCount === 1 ? 'colour' : 'colours'}</span>}
+                                {o.buyerPO && <span className="truncate">PO: {o.buyerPO}</span>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Progress value={pct} className="h-1.5 flex-1" />
+                                <span className={`text-[10px] shrink-0 w-10 text-right font-medium ${
+                                  pct >= 100 ? 'text-success' : isLate || isDue ? 'text-destructive' : pct > 0 ? 'text-primary' : 'text-muted-foreground'
+                                }`}>
+                                  {h.producedQty}/{h.orderedQty}
+                                </span>
+                              </div>
+                              {h.dueDate && (
+                                <div className="text-[9px] text-muted-foreground mt-1">
+                                  Due: {h.dueDate}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Secondary metrics */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
