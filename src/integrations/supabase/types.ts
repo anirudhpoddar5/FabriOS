@@ -127,6 +127,13 @@ export type Database = {
             foreignKeyName: "bom_headers_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "bom_headers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "order_headers"
             referencedColumns: ["id"]
           },
@@ -379,6 +386,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "dispatch_records_order_id_fkey"
@@ -758,6 +772,13 @@ export type Database = {
             foreignKeyName: "invoices_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "order_headers"
             referencedColumns: ["id"]
           },
@@ -823,6 +844,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "inventory_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_issues_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "material_issues_order_id_fkey"
@@ -1080,6 +1108,13 @@ export type Database = {
             foreignKeyName: "order_rows_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_rows_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "order_headers"
             referencedColumns: ["id"]
           },
@@ -1308,6 +1343,13 @@ export type Database = {
             foreignKeyName: "production_entries_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "production_entries_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "order_headers"
             referencedColumns: ["id"]
           },
@@ -1402,6 +1444,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "inventory_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "production_material_consumptions_order_id_fkey"
@@ -1591,6 +1640,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "purchase_orders_order_id_fkey"
@@ -2082,6 +2138,13 @@ export type Database = {
             foreignKeyName: "stock_transactions_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "stock_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "order_headers"
             referencedColumns: ["id"]
           },
@@ -2172,6 +2235,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_jobs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_cost_summary"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "subcontract_jobs_order_id_fkey"
@@ -2397,23 +2467,29 @@ export type Database = {
     Views: {
       order_cost_summary: {
         Row: {
-          order_id: string
-          company_id: string
-          order_status: string
-          planned_material_cost: number
-          actual_material_cost: number
-          actual_labour_cost: number
-          planned_total_cost: number
-          actual_total_cost: number
-          produced_qty: number
-          actual_cost_per_piece: number
-          planned_cost_per_piece: number
-          variance_amount: number
-          variance_per_piece: number
+          actual_cost_per_piece: number | null
+          actual_labour_cost: number | null
+          actual_material_cost: number | null
+          actual_total_cost: number | null
+          company_id: string | null
+          order_id: string | null
+          order_status: string | null
+          planned_cost_per_piece: number | null
+          planned_material_cost: number | null
+          planned_total_cost: number | null
+          produced_qty: number | null
+          variance_amount: number | null
+          variance_per_piece: number | null
         }
-        Insert: {}
-        Update: {}
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "order_headers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -2426,6 +2502,7 @@ export type Database = {
         Returns: boolean
       }
       save_bom_with_lines: { Args: { payload: Json }; Returns: string }
+      save_grn_with_lines: { Args: { payload: Json }; Returns: string }
       save_order_with_rows_and_colourways: {
         Args: { payload: Json }
         Returns: string

@@ -171,47 +171,36 @@ export default function GRNPage() {
 
   const saveGRN = useMutation({
     mutationFn: async () => {
-      const status = computeStatus();
-      const { data: grn, error } = await supabase.from('grn_headers')
-        .insert({ grn_number: form.grn_number, po_id: form.po_id || null, vendor_id: form.vendor_id || null, grn_date: form.grn_date, status, remarks: form.remarks, company_id: companyId })
-        .select().single();
-      if (error) throw error;
-      const validLines = lines.filter(l => l.qty_received > 0);
-      if (validLines.length > 0) {
-        const { error: lineError } = await supabase.from('grn_lines')
-          .insert(validLines.map(l => ({
-            grn_id: grn.id, item_id: l.item_id || null, item_name: l.item_name,
-            qty_received: l.qty_accepted,
-            uom: l.uom, lot_number: l.lot_number, batch_number: l.batch_number,
+      const payload: any = {
+        header: {
+          grn_number: form.grn_number,
+          po_id: form.po_id || null,
+          vendor_id: form.vendor_id || null,
+          grn_date: form.grn_date,
+          status: computeStatus(),
+          remarks: form.remarks || null,
+        },
+        lines: lines
+          .filter((l: any) => l.qty_received > 0)
+          .map((l: any) => ({
+            id: l.id || crypto.randomUUID(),
+            item_id: l.item_id || null,
+            item_name: l.item_name,
+            qty_ordered: l.qty_ordered || 0,
+            qty_accepted: l.qty_accepted || 0,
+            qty_received: l.qty_received || 0,
+            qty_rejected: l.qty_rejected || 0,
+            rejection_reason: l.rejection_reason || '',
+            uom: l.uom || 'meters',
+            lot_number: l.lot_number || '',
+            batch_number: l.batch_number || '',
             po_line_id: l.po_line_id || null,
-            remarks: l.qty_rejected > 0
-              ? `Rejected ${l.qty_rejected} ${l.uom} - ${l.rejection_reason || 'Quality issue'}${l.remarks ? '; ' + l.remarks : ''}`
-              : l.remarks || null,
-          })));
-        if (lineError) throw lineError;
-        for (const l of validLines) {
-          if (l.item_id) {
-            await supabase.from('stock_transactions').insert({
-              company_id: companyId, item_id: l.item_id, txn_type: 'inward', txn_date: form.grn_date,
-              qty: l.qty_accepted, vendor_id: form.vendor_id || null, grn_id: grn.id,
-              lot_number: l.lot_number, batch_number: l.batch_number, uom: l.uom,
-            });
-          }
-          if (l.po_line_id && l.qty_accepted > 0) {
-            const { data: pol } = await supabase.from('purchase_order_lines').select('qty_received').eq('id', l.po_line_id).single();
-            const prevReceived = pol?.qty_received || 0;
-            await supabase.from('purchase_order_lines').update({ qty_received: prevReceived + l.qty_accepted }).eq('id', l.po_line_id);
-          }
-        }
-      }
-      const totalOrdered = lines.reduce((s, l) => s + l.qty_ordered, 0);
-      const totalAccepted = validLines.reduce((s, l) => s + l.qty_accepted, 0);
-      const totalRejected = validLines.reduce((s, l) => s + l.qty_rejected, 0);
-      if (totalOrdered > 0 && totalAccepted + totalRejected >= totalOrdered) {
-        await supabase.from('purchase_orders').update({ status: 'received' }).eq('id', form.po_id);
-      } else if (totalAccepted > 0) {
-        await supabase.from('purchase_orders').update({ status: 'partial' }).eq('id', form.po_id);
-      }
+            remarks: l.remarks || null,
+          })),
+      };
+
+      const { data, error } = await supabase.rpc('save_grn_with_lines', { payload });
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['grn_headers'] });
@@ -222,7 +211,7 @@ export default function GRNPage() {
       toast.success('GRN recorded');
       setDialogOpen(false);
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => toast.error(`GRN was not saved: ${err.message}`),
   });
 
   const handleAdd = () => {
