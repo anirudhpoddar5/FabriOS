@@ -19,7 +19,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExplainerTip } from '@/components/ExplainerTip';
 import { usePagination } from '@/hooks/use-pagination';
 import DataTablePagination from '@/components/DataTablePagination';
-import { buildBomLinePayloads } from '@/lib/bom-line-save';
 
 const CATEGORIES = ['fabric', 'trim', 'accessory', 'other'];
 
@@ -98,38 +97,44 @@ export default function BomPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const payload: any = {
+        bom_type: form.bom_type,
+        header: {
+          title: form.title,
+          order_id: form.order_id || null,
+          remarks: form.remarks,
+          status: form.status || 'draft',
+        },
+        lines: lines.map((line: any, idx: number) => ({
+          id: line.id || crypto.randomUUID(),
+          category: line.category || 'fabric',
+          item_name: line.item_name || '',
+          item_id: line.item_id || null,
+          quantity: Number(line.quantity) || 0,
+          avg_consumption: Number(line.avg_consumption) || 0,
+          extra_pct: Number(line.extra_pct) || 0,
+          rate: Number(line.rate) || 0,
+          total_amount: Number(line.total_amount) || 0,
+          uom: line.uom || 'meters',
+          vendor_name: line.vendor_name || null,
+          remarks: line.remarks || null,
+          sort_order: idx,
+        })),
+      };
+
       if (editingId) {
-        const { error } = await supabase.from('bom_headers').update({
-          title: form.title, bom_type: form.bom_type, order_id: form.order_id || null,
-          remarks: form.remarks, status: form.status,
-        }).eq('id', editingId);
-        if (error) throw error;
-        await supabase.from('bom_lines').delete().eq('bom_id', editingId);
-        if (lines.length > 0) {
-          const rows = buildBomLinePayloads(editingId, lines);
-          const { error: le } = await supabase.from('bom_lines').insert(rows);
-          if (le) throw le;
-        }
-      } else {
-        const bomId = crypto.randomUUID();
-        const { error } = await supabase.from('bom_headers').insert({
-          id: bomId, company_id: companyId, title: form.title, bom_type: form.bom_type,
-          order_id: form.order_id || null, remarks: form.remarks, status: form.status || 'draft',
-        });
-        if (error) throw error;
-        if (lines.length > 0) {
-          const rows = buildBomLinePayloads(bomId, lines);
-          const { error: le } = await supabase.from('bom_lines').insert(rows);
-          if (le) throw le;
-        }
+        payload.id = editingId;
       }
+
+      const { data, error } = await supabase.rpc('save_bom_with_lines', { payload });
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bom_headers'] });
       toast.success(editingId ? 'BOM updated' : 'BOM created');
       setDialogOpen(false);
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => toast.error(`BOM was not saved: ${err.message}`),
   });
 
   const generatePOMutation = useMutation({

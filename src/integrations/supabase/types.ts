@@ -2403,6 +2403,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      save_bom_with_lines: { Args: { payload: Json }; Returns: string }
       save_order_with_rows_and_colourways: {
         Args: { payload: Json }
         Returns: string
