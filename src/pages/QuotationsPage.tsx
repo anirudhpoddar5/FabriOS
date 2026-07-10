@@ -17,6 +17,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { printDetailPage } from '@/lib/pdf-export';
+import { createQuotationWithLines } from '@/lib/quotation-save';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -55,6 +56,7 @@ export default function QuotationsPage() {
   const [form, setForm] = useState<any>({});
   const [lines, setLines] = useState<any[]>([]);
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const quotations = appData.quotations;
   const quotationLines = appData.quotationLines;
@@ -188,30 +190,41 @@ export default function QuotationsPage() {
       qc.invalidateQueries({ queryKey: ['quotations'] });
       toast.success('Quotation updated');
     } else {
-      const { error } = await addItem('quotations', payload as any);
-      if (error) { toast.error(error); return; }
-
-      // Get the newly created quotation ID from the refreshed data
-      const refreshed = appData.quotations;
-      const added = refreshed.find((q: any) => q.quotationNumber === form.quotationNumber);
-      if (added) {
-        for (let i = 0; i < lines.length; i++) {
-          const l = lines[i];
-          if (!l.description) continue;
-          const { error: lErr } = await supabase.from('quotation_lines').insert({
-            quotation_id: added.id,
-            product_id: l.productId || null,
-            description: l.description,
-            qty: Number(l.qty) || 0,
-            uom: l.uom || 'pcs',
-            rate: Number(l.rate) || 0,
-            sort_order: i,
-          });
-          if (lErr) { toast.error(lErr.message); return; }
-        }
+      if (!companyId) { toast.error('Company details are missing. Please sign in again.'); return; }
+      setSaving(true);
+      try {
+        await createQuotationWithLines(
+          {
+            company_id: companyId,
+            quotation_number: payload.quotationNumber,
+            buyer_id: payload.buyerId,
+            date: payload.date,
+            valid_until: payload.validUntil,
+            currency: payload.currency,
+            tax_percent: payload.taxPercent,
+            subtotal: payload.subtotal,
+            remarks: payload.remarks,
+            status: payload.status,
+          },
+          lines.map((line, index) => ({ ...line, sortOrder: index })),
+          async header => {
+            const { data: created, error } = await supabase.from('quotations').insert(header).select('id').single();
+            if (error) throw error;
+            return created.id;
+          },
+          async quotationLines => {
+            const { error } = await supabase.from('quotation_lines').insert(quotationLines);
+            if (error) throw error;
+          },
+        );
+        qc.invalidateQueries({ queryKey: ['quotations'] });
+        toast.success('Quotation saved with its items');
+      } catch (err: any) {
+        toast.error(`Quotation was not saved: ${err.message}`);
+        return;
+      } finally {
+        setSaving(false);
       }
-      qc.invalidateQueries({ queryKey: ['quotations'] });
-      toast.success('Quotation created');
     }
     setDialogOpen(false);
     await refreshData();
@@ -522,7 +535,7 @@ export default function QuotationsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>Save</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
