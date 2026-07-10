@@ -612,20 +612,21 @@ export default function StitchingOrdersPage() {
           onPointerDownOutside={(e) => { e.preventDefault(); }}
           onFocusOutside={(e) => { e.preventDefault(); }}
           onInteractOutside={(e) => { e.preventDefault(); }}>
-          <DialogHeader><DialogTitle>{editingId ? 'Edit' : 'New'} Stitching Order</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingId ? 'Edit' : 'Create'} Stitching Order</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">Step 1: customer and style · Step 2: add item and colours · Step 3: check and save</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1"><Label className="text-xs">Internal PO</Label><Input value={form.internalPO ?? ''} readOnly className="bg-muted" /></div>
               <div className="space-y-1"><Label className="text-xs">Buyer PO</Label><Input value={form.buyerPO || ''} onChange={e => setForm((p: any) => ({ ...p, buyerPO: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1"><Label className="text-xs">Buyer *</Label>
+              <div className="space-y-1"><Label className="text-xs">Customer *</Label>
                 <Select value={form.buyerId || ''} onValueChange={v => setForm((p: any) => ({ ...p, buyerId: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select buyer" /></SelectTrigger>
                   <SelectContent>{buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.code}{b.name ? ` - ${b.name}` : ''}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1"><Label className="text-xs">Style *</Label><Input value={form.style || ''} onChange={e => setForm((p: any) => ({ ...p, style: e.target.value }))} /></div>
+              <div className="space-y-1"><Label className="text-xs">Style / Design *</Label><Input value={form.style || ''} onChange={e => setForm((p: any) => ({ ...p, style: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1"><Label className="text-xs">Status</Label>
@@ -655,7 +656,7 @@ export default function StitchingOrdersPage() {
             <div className="space-y-1"><Label className="text-xs">Remarks</Label><Input value={form.remarks || ''} onChange={e => setForm((p: any) => ({ ...p, remarks: e.target.value }))} /></div>
 
             <div className="text-xs text-muted-foreground flex items-center gap-4">
-              <span>Rows: {rows.length}</span>
+              <span>Items: {rows.length}</span>
               <span>Total Qty: <strong>{totalRowQty}</strong></span>
               {totalChartQty > 0 && <span>Chart Qty: <strong>{totalChartQty}</strong></span>}
               {totalOrderValue > 0 && <span>Value: <strong>{form.currency} {totalOrderValue.toFixed(2)}</strong></span>}
@@ -672,7 +673,7 @@ export default function StitchingOrdersPage() {
                         <Button variant="ghost" size="icon" className="h-5 w-5" disabled={ri === 0} onClick={() => moveRow(ri, -1)}><GripVertical className="h-3 w-3 rotate-0" /></Button>
                         <Button variant="ghost" size="icon" className="h-5 w-5" disabled={ri === rows.length - 1} onClick={() => moveRow(ri, 1)}><GripVertical className="h-3 w-3 rotate-180" /></Button>
                       </div>
-                      <span className="text-xs font-semibold text-muted-foreground min-w-[60px]">Row {ri + 1}</span>
+                      <span className="text-xs font-semibold text-muted-foreground min-w-[60px]">Item {ri + 1}</span>
                       <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                         <div className="space-y-0.5">
                           <Label className="text-[10px] text-muted-foreground">Product *</Label>
@@ -713,7 +714,7 @@ export default function StitchingOrdersPage() {
 
                     <div className="pl-8 space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-medium text-muted-foreground">Colourways</span>
+                        <span className="text-[10px] font-medium text-muted-foreground">Colours and quantities</span>
                         {mismatch && <span className="flex items-center gap-1 text-[10px] text-warning"><AlertTriangle className="h-2.5 w-2.5" /> {rowCwQty} vs {r.orderQty}</span>}
                         <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addColourToRow(r._key)}><Plus className="h-3 w-3 mr-1" /> Add</Button>
                       </div>
@@ -749,7 +750,7 @@ export default function StitchingOrdersPage() {
               })}
             </div>
 
-            <Button size="sm" variant="outline" onClick={addRow}><Plus className="h-3.5 w-3.5 mr-1" /> Add Product Row</Button>
+            <Button size="sm" variant="outline" onClick={addRow}><Plus className="h-3.5 w-3.5 mr-1" /> Add another item</Button>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>

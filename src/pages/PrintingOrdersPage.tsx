@@ -541,21 +541,22 @@ export default function PrintingOrdersPage() {
           onFocusOutside={(e) => { e.preventDefault(); }}
           onInteractOutside={(e) => { e.preventDefault(); }}>
           <DialogHeader>
-            <DialogTitle>{editingId ? 'Edit' : 'New'} Printing Order</DialogTitle>
+            <DialogTitle>{editingId ? 'Edit' : 'Create'} Printing Order</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">Step 1: customer and style · Step 2: add item and colours · Step 3: check and save</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1"><Label className="text-xs">Internal PO</Label><Input value={form.internalPO ?? ''} readOnly className="bg-muted" /></div>
               <div className="space-y-1"><Label className="text-xs">Buyer PO</Label><Input value={form.buyerPO || ''} onChange={e => setForm((p: any) => ({ ...p, buyerPO: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1"><Label className="text-xs">Buyer *</Label>
+              <div className="space-y-1"><Label className="text-xs">Customer *</Label>
                 <Select value={form.buyerId || ''} onValueChange={v => setForm((p: any) => ({ ...p, buyerId: v }))}>
                   <SelectTrigger><SelectValue placeholder="Select buyer" /></SelectTrigger>
                   <SelectContent>{buyers.map(b => <SelectItem key={b.id} value={b.id}>{b.code}{b.name ? ` - ${b.name}` : ''}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1"><Label className="text-xs">Style *</Label><Input value={form.style || ''} onChange={e => setForm((p: any) => ({ ...p, style: e.target.value }))} /></div>
+              <div className="space-y-1"><Label className="text-xs">Style / Design *</Label><Input value={form.style || ''} onChange={e => setForm((p: any) => ({ ...p, style: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <DatePickerField label="Target End Date" value={form.targetEndDate || ''} onChange={v => setForm((p: any) => ({ ...p, targetEndDate: v }))} />
@@ -584,8 +585,8 @@ export default function PrintingOrdersPage() {
 
             <div className="border-t pt-3">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold">Product Rows</h3>
-                <Button size="sm" variant="outline" onClick={addRow}><Plus className="h-3.5 w-3.5 mr-1" /> Add Product Row</Button>
+                <h3 className="text-sm font-semibold">Step 2: Items and colours</h3>
+                <Button size="sm" variant="outline" onClick={addRow}><Plus className="h-3.5 w-3.5 mr-1" /> Add another item</Button>
               </div>
 
               <div className="space-y-4">
@@ -597,7 +598,7 @@ export default function PrintingOrdersPage() {
                       <CardHeader className="py-2 px-3 flex flex-row items-center justify-between">
                         <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
                           <GripVertical className="h-3.5 w-3.5" />
-                          Row {ri + 1}
+                          Item {ri + 1}
                         </CardTitle>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeRow(row.id)} disabled={rows.length <= 1}>
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -638,7 +639,7 @@ export default function PrintingOrdersPage() {
                         <div className="pt-1">
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-2">
-                              <Label className="text-[10px] font-medium text-muted-foreground">Colourways</Label>
+                              <Label className="text-[10px] font-medium text-muted-foreground">Colours and quantities</Label>
                               {rowQtyMismatch && <span className="flex items-center gap-1 text-[9px] text-warning"><AlertTriangle className="h-2.5 w-2.5" /> Qty mismatch ({rowTotalCwQty} vs {row.orderQty})</span>}
                             </div>
                             <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => addRowColour(row.id)}><Plus className="h-3 w-3 mr-1" /> Add Colour</Button>
