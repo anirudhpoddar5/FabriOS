@@ -20,11 +20,12 @@ import { printDetailPage } from '@/lib/pdf-export';
 
 export default function DispatchPage() {
   const { profile } = useAuth();
-  const { data: appData } = useData();
+  const { data: appData, currentFactoryId, setCurrentFactoryId } = useData();
   const companyId = profile?.company_id;
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [buyerFilter, setBuyerFilter] = useState('all');
+  const [factoryFilter, setFactoryFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -147,8 +148,20 @@ export default function DispatchPage() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'dispatches.csv'; a.click();
   };
 
+  const factoryOrderIds = useMemo(() => {
+    if (!currentFactoryId) return null;
+    const factoryResources = [...appData.printingTables, ...appData.stitchingLines].filter((r: any) => r.factoryId === currentFactoryId).map((r: any) => r.id);
+    const factoryEntryOrderIds = new Set(appData.entries.filter((e: any) => factoryResources.includes(e.resourceId)).map((e: any) => e.orderId));
+    return factoryEntryOrderIds;
+  }, [currentFactoryId, appData.entries, appData.printingTables, appData.stitchingLines]);
+
+  const factoryOptions = useMemo(() => {
+    return appData.factories.filter((f: any) => f.active !== false);
+  }, [appData.factories]);
+
   const filtered = useMemo(() => {
     return dispatches.filter((d: any) => {
+      if (factoryFilter !== 'all' && d.order_id && factoryOrderIds && !factoryOrderIds.has(d.order_id)) return false;
       if (buyerFilter !== 'all' && d.buyer_id !== buyerFilter) return false;
       if (dateFrom && d.dispatch_date && d.dispatch_date < dateFrom) return false;
       if (dateTo && d.dispatch_date && d.dispatch_date > dateTo) return false;
@@ -158,7 +171,7 @@ export default function DispatchPage() {
       }
       return true;
     });
-  }, [dispatches, search, buyerFilter, dateFrom, dateTo]);
+  }, [dispatches, search, buyerFilter, factoryFilter, factoryOrderIds, dateFrom, dateTo]);
 
   const pagination = usePagination(filtered, 50);
 
@@ -220,6 +233,15 @@ export default function DispatchPage() {
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input placeholder="Search dispatches..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
+        {factoryOptions.length > 1 && (
+          <Select value={factoryFilter} onValueChange={setFactoryFilter}>
+            <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Factory" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Factories</SelectItem>
+              {factoryOptions.map((f: any) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={buyerFilter} onValueChange={setBuyerFilter}>
           <SelectTrigger className="h-9 w-[120px] text-xs"><SelectValue placeholder="Buyer" /></SelectTrigger>
           <SelectContent>

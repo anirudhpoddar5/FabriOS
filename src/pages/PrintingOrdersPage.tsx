@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 import { DatePickerField } from '@/components/DatePickerField';
 import { getOrderBadge } from '@/lib/order-status';
 import { printDetailPage } from '@/lib/pdf-export';
+import { useFormDraft } from '@/hooks/use-form-draft';
+import { SaveButton } from '@/components/SaveButton';
 
 function makeRow(id?: string) {
   return {
@@ -48,6 +50,7 @@ export default function PrintingOrdersPage() {
   const [rows, setRows] = useState<any[]>([]);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const clearDraft = useFormDraft('fabrios:draft:printing-order', { form, rows }, dialogOpen && !editingId, draft => { setForm(draft.form); setRows(draft.rows); });
   const [bulkStatus, setBulkStatus] = useState('');
 
   const [searchParams] = useSearchParams();
@@ -314,8 +317,9 @@ export default function PrintingOrdersPage() {
         toast.success('Order created');
       }
 
-        await refreshData();
+      await refreshData();
       setDialogOpen(false);
+      clearDraft();
     } finally {
       setSaving(false);
     }
@@ -532,7 +536,10 @@ export default function PrintingOrdersPage() {
       <DataTablePagination {...pagination} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto"
+          onPointerDownOutside={(e) => { e.preventDefault(); }}
+          onFocusOutside={(e) => { e.preventDefault(); }}
+          onInteractOutside={(e) => { e.preventDefault(); }}>
           <DialogHeader>
             <DialogTitle>{editingId ? 'Edit' : 'New'} Printing Order</DialogTitle>
           </DialogHeader>
@@ -672,7 +679,7 @@ export default function PrintingOrdersPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Order'}</Button>
+            <SaveButton onClick={handleSave} saving={saving}>Save Order</SaveButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

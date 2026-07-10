@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 import { DatePickerField } from '../components/DatePickerField';
 import { getOrderBadge } from '../lib/order-status';
 import { printDetailPage } from '../lib/pdf-export';
+import { useFormDraft } from '@/hooks/use-form-draft';
+import { SaveButton } from '@/components/SaveButton';
 import type { OrderStatus } from '../types';
 
 const generateId = () => crypto.randomUUID();
@@ -61,6 +63,7 @@ export default function StitchingOrdersPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const clearDraft = useFormDraft('fabrios:draft:stitching-order', { form, rows }, dialogOpen && !editingId, draft => { setForm(draft.form); setRows(draft.rows); });
 
   const [searchParams] = useSearchParams();
 
@@ -394,6 +397,7 @@ export default function StitchingOrdersPage() {
 
       await refreshData();
       setDialogOpen(false);
+      clearDraft();
     } finally {
       setSaving(false);
     }
@@ -567,7 +571,11 @@ export default function StitchingOrdersPage() {
                           <span className={`text-[10px] font-medium ${prog.pct >= 100 ? 'text-success' : prog.pct > 0 ? 'text-primary' : 'text-muted-foreground'}`}>{prog.pct.toFixed(0)}%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="py-2">{(() => { const badge = getOrderBadge(o.status, entryCountMap.get(o.id) || 0, o.targetEndDate, prog.pct); return <Badge className={`text-[10px] ${badge.className}`}>{badge.label}</Badge>; })()}</TableCell>
+                      <TableCell className="py-2">
+                        <Badge className={`text-[10px] ${getOrderBadge(o.status, entryCountMap.get(o.id) || 0, o.targetEndDate, prog.pct).className}`}>
+                          {getOrderBadge(o.status, entryCountMap.get(o.id) || 0, o.targetEndDate, prog.pct).label}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="py-2">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => handleEdit(e, o)}><Pencil className="h-3.5 w-3.5" /></Button>
                       </TableCell>
@@ -600,7 +608,10 @@ export default function StitchingOrdersPage() {
       <DataTablePagination {...pagination} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto"
+          onPointerDownOutside={(e) => { e.preventDefault(); }}
+          onFocusOutside={(e) => { e.preventDefault(); }}
+          onInteractOutside={(e) => { e.preventDefault(); }}>
           <DialogHeader><DialogTitle>{editingId ? 'Edit' : 'New'} Stitching Order</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -742,7 +753,7 @@ export default function StitchingOrdersPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Order'}</Button>
+            <SaveButton onClick={handleSave} saving={saving}>Save Order</SaveButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
