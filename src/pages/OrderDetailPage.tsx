@@ -7,10 +7,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Package, DollarSign, TrendingUp, Calendar, AlertTriangle, Printer, Download } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { ArrowLeft, Package, DollarSign, TrendingUp, Calendar, AlertTriangle, Printer, Download, Truck, Edit } from 'lucide-react';
 import { getOrderBadge } from '@/lib/order-status';
 import { printDetailPage } from '@/lib/pdf-export';
+import { toast } from 'sonner';
+
+interface ConsumptionRecord {
+  id: string;
+  production_entry_id: string;
+  bom_line_id: string;
+  item_id: string;
+  planned_qty: number;
+  actual_qty: number;
+  uom: string | null;
+  is_overridden: boolean;
+  item_name: string | null;
+  item_code: string | null;
+}
 
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +37,10 @@ export default function OrderDetailPage() {
   const companyId = profile?.company_id;
 
   const [rows, setRows] = useState<any[]>([]);
+  const [consumptionRecords, setConsumptionRecords] = useState<ConsumptionRecord[]>([]);
+  const [correctingRecord, setCorrectingRecord] = useState<ConsumptionRecord | null>(null);
+  const [correctionValue, setCorrectionValue] = useState<string>('');
+  const [savingCorrection, setSavingCorrection] = useState(false);
 
   const isPrinting = location.pathname.startsWith('/printing-orders');
   const module = isPrinting ? 'printing' : 'stitching';
@@ -47,7 +67,76 @@ export default function OrderDetailPage() {
     supabase.from('order_rows').select('*').eq('order_id', id).order('sort_order').then(({ data: d }) => {
       if (d) setRows(d);
     });
+    fetchConsumptions();
   }, [id, companyId]);
+
+  async function fetchConsumptions() {
+    if (!id) return;
+    const { data: records, error } = await supabase
+      .from('production_material_consumptions')
+      .select(`
+        *,
+        inventory_items!inner(name, code)
+      `)
+      .eq('order_id', id)
+      .order('created_at');
+    if (error) { console.error('Failed to fetch consumptions', error); return; }
+    if (records) {
+      setConsumptionRecords(records.map((r: any) => ({
+        id: r.id,
+        production_entry_id: r.production_entry_id,
+        bom_line_id: r.bom_line_id,
+        item_id: r.item_id,
+        planned_qty: r.planned_qty,
+        actual_qty: r.actual_qty,
+        uom: r.uom,
+        is_overridden: r.is_overridden,
+        item_name: r.inventory_items?.name ?? null,
+        item_code: r.inventory_items?.code ?? null,
+      })));
+    }
+  }
+
+  async function handleCorrectionSave() {
+    if (!correctingRecord) return;
+    const newActual = parseFloat(correctionValue);
+    if (isNaN(newActual) || newActual < 0) {
+      toast.error('Enter a valid non-negative quantity');
+      return;
+    }
+    setSavingCorrection(true);
+    try {
+      const diff = correctingRecord.actual_qty - newActual;
+      const { error: updateError } = await supabase
+        .from('production_material_consumptions')
+        .update({ actual_qty: newActual, is_overridden: true })
+        .eq('id', correctingRecord.id);
+      if (updateError) { toast.error(`Failed to update: ${updateError.message}`); return; }
+
+      if (diff !== 0) {
+        const { error: txnError } = await supabase
+          .from('stock_transactions')
+          .insert({
+            company_id,
+            item_id: correctingRecord.item_id,
+            txn_type: 'consumption_correction',
+            txn_date: new Date().toISOString().slice(0, 10),
+            qty: diff,
+            uom: correctingRecord.uom,
+            order_id: id,
+            remarks: `Correction for consumption record ${correctingRecord.id} (${correctingRecord.actual_qty} → ${newActual})`,
+          });
+        if (txnError) { toast.error(`Failed to create adjustment: ${txnError.message}`); return; }
+      }
+
+      toast.success('Material consumption corrected');
+      setCorrectingRecord(null);
+      setCorrectionValue('');
+      await fetchConsumptions();
+    } finally {
+      setSavingCorrection(false);
+    }
+  }
 
   const buyer = useMemo(() => {
     if (!order) return null;
@@ -154,6 +243,9 @@ export default function OrderDetailPage() {
         <Badge className={`${derivedStatus.color} text-xs`}>{derivedStatus.label}</Badge>
         <Badge variant="outline" className="text-xs capitalize">{module}</Badge>
         <div className="ml-auto flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => navigate(`${isPrinting ? '/printing-orders' : '/stitching-orders'}/${id}/pod`)}>
+            <Truck className="h-3.5 w-3.5 mr-1" /> POD
+          </Button>
           <Button size="sm" variant="outline" onClick={handlePrint}><Printer className="h-3.5 w-3.5 mr-1" /> Print</Button>
           <Button size="sm" variant="outline" onClick={handleDownload}><Download className="h-3.5 w-3.5 mr-1" /> CSV</Button>
         </div>
@@ -375,6 +467,126 @@ export default function OrderDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Material Consumption */}
+      {consumptionRecords.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm">Material Consumption ({consumptionRecords.length} records)</CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs h-8">Material</TableHead>
+                    <TableHead className="text-xs h-8">Planned</TableHead>
+                    <TableHead className="text-xs h-8">Actual</TableHead>
+                    <TableHead className="text-xs h-8">UOM</TableHead>
+                    <TableHead className="text-xs h-8">Variance</TableHead>
+                    <TableHead className="text-xs h-8">Status</TableHead>
+                    <TableHead className="text-xs h-8 w-[80px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {consumptionRecords.map(rec => {
+                    const variance = rec.actual_qty - rec.planned_qty;
+                    return (
+                      <TableRow key={rec.id}>
+                        <TableCell className="text-xs py-2 font-medium">
+                          {rec.item_code ? `${rec.item_code} — ` : ''}{rec.item_name || rec.item_id.slice(0, 8)}
+                        </TableCell>
+                        <TableCell className="text-xs py-2">{rec.planned_qty}</TableCell>
+                        <TableCell className={`text-xs py-2 font-semibold ${rec.is_overridden ? 'text-warning' : ''}`}>
+                          {rec.actual_qty}
+                          {rec.is_overridden && <span className="ml-1 text-[10px] text-muted-foreground">(overridden)</span>}
+                        </TableCell>
+                        <TableCell className="text-xs py-2">{rec.uom || '—'}</TableCell>
+                        <TableCell className={`text-xs py-2 font-mono ${variance < 0 ? 'text-success' : variance > 0 ? 'text-destructive' : ''}`}>
+                          {variance > 0 ? '+' : ''}{variance.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="py-2">
+                          {rec.is_overridden ? (
+                            <Badge variant="outline" className="text-[10px] text-warning border-warning">Corrected</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">Auto</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[10px] gap-1"
+                            onClick={() => { setCorrectingRecord(rec); setCorrectionValue(String(rec.planned_qty)); }}
+                          >
+                            <Edit className="h-3 w-3" /> Actual differs
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {/* Summary row */}
+                  {(() => {
+                    const totalPlanned = consumptionRecords.reduce((s, r) => s + r.planned_qty, 0);
+                    const totalActual = consumptionRecords.reduce((s, r) => s + r.actual_qty, 0);
+                    return (
+                      <TableRow className="bg-muted/50 font-semibold">
+                        <TableCell className="text-xs py-2">Total</TableCell>
+                        <TableCell className="text-xs py-2">{totalPlanned.toFixed(2)}</TableCell>
+                        <TableCell className="text-xs py-2">{totalActual.toFixed(2)}</TableCell>
+                        <TableCell className="text-xs py-2">—</TableCell>
+                        <TableCell className={`text-xs py-2 font-mono ${(totalActual - totalPlanned) < 0 ? 'text-success' : (totalActual - totalPlanned) > 0 ? 'text-destructive' : ''}`}>
+                          {(totalActual - totalPlanned) > 0 ? '+' : ''}{(totalActual - totalPlanned).toFixed(2)}
+                        </TableCell>
+                        <TableCell colSpan={2}></TableCell>
+                      </TableRow>
+                    );
+                  })()}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Correction Dialog */}
+      <Dialog open={!!correctingRecord} onOpenChange={open => { if (!open) { setCorrectingRecord(null); setCorrectionValue(''); } }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Correct Material Consumption</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="text-xs text-muted-foreground">
+              Material: <span className="font-medium text-foreground">{correctingRecord?.item_name || correctingRecord?.item_id?.slice(0, 8)}</span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Previously consumed: <span className="font-medium text-foreground">{correctingRecord?.actual_qty} {correctingRecord?.uom || ''}</span>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Actual consumed quantity</label>
+              <Input
+                type="number"
+                min={0}
+                step="any"
+                value={correctionValue}
+                onChange={e => setCorrectionValue(e.target.value)}
+                autoFocus
+              />
+              <p className="text-[10px] text-muted-foreground">
+                A stock adjustment transaction will be created for the difference ({correctionValue ? (parseFloat(correctionValue) - (correctingRecord?.actual_qty || 0)).toFixed(2) : '0'} {correctingRecord?.uom || ''}).
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { setCorrectingRecord(null); setCorrectionValue(''); }}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={savingCorrection} onClick={handleCorrectionSave}>
+              {savingCorrection ? 'Saving...' : 'Save Correction'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

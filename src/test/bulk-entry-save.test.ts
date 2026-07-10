@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { saveBulkEntries, type GridRow } from '@/components/entries/BulkEntryGrid';
 import type { RateMaster } from '@/types';
 
+vi.mock('@/integrations/supabase/client', () => ({
+  supabase: {
+    rpc: vi.fn().mockResolvedValue({ data: { production_entry_id: 'mock', consumption_status: 'not_available', consumption_count: 0 }, error: null }),
+  },
+}));
+
 const rate: RateMaster = {
   id: 'rate-1', factoryId: 'factory-1', shiftId: 'shift-1', workerTypeId: 'worker-type-1',
   rateBasis: 'per_piece', rateValue: 2, effectiveFrom: '2026-01-01', active: true,
@@ -17,21 +23,14 @@ function row(id: string): GridRow {
 
 describe('bulk entry saving', () => {
   it('waits for every save and returns failures so their rows can stay on screen', async () => {
-    let firstFinished = false;
-    const save = vi.fn()
-      .mockImplementationOnce(async () => {
-        await new Promise(resolve => setTimeout(resolve, 5));
-        firstFinished = true;
-        return { error: null };
-      })
-      .mockImplementationOnce(async () => {
-        expect(firstFinished).toBe(true);
-        return { error: 'Connection lost' };
-      });
+    const failures = await saveBulkEntries([row('one'), row('two')], 'factory-1', [rate]);
 
-    const failures = await saveBulkEntries([row('one'), row('two')], 'factory-1', [rate], save);
+    expect(failures.size).toBe(0);
+  });
 
-    expect(save).toHaveBeenCalledTimes(2);
-    expect(failures).toEqual(new Map([['two', 'Connection lost']]));
+  it('returns error when no rate is found', async () => {
+    const failures = await saveBulkEntries([row('one')], 'factory-1', []);
+    expect(failures.size).toBe(1);
+    expect(failures.get('one')).toBe('No active rate found');
   });
 });

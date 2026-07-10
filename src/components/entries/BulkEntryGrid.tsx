@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useData, generateId } from '@/context/DataContext';
 import { supabase } from '@/integrations/supabase/client';
+import { saveProductionEntryWithConsumption } from '@/lib/material-auto-consumption';
 import { RateMaster, ProductionEntry } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,7 +43,6 @@ export async function saveBulkEntries(
   rows: GridRow[],
   factoryId: string,
   rateMasters: RateMaster[],
-  addEntry: (entry: ProductionEntry) => Promise<{ error: string | null }>,
 ): Promise<Map<string, string>> {
   const failures = new Map<string, string>();
   for (const row of rows) {
@@ -59,8 +59,8 @@ export async function saveBulkEntries(
       outputQty: row.outputQty, outputUOM: '', rateMasterId: rate.id, rateBasis: rate.rateBasis,
       rateValue: rate.rateValue, costAmount: row.costPreview, createdAt: new Date().toISOString(),
     };
-    const result = await addEntry(entry);
-    if (result.error) failures.set(row.id, result.error);
+    const { error } = await saveProductionEntryWithConsumption(supabase, entry);
+    if (error) failures.set(row.id, error);
   }
   return failures;
 }
@@ -134,7 +134,7 @@ interface Props {
 }
 
 export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props) {
-  const { data, addItem, currentFactoryId, setCurrentFactoryId } = useData();
+  const { data, refreshData, addItem, currentFactoryId, setCurrentFactoryId } = useData();
   const mod = defaultModule || 'printing';
   const [rows, setRows] = useState<GridRow[]>([emptyRow(mod)]);
   const [quickForm, setQuickForm] = useState<QuickEntryDraft>(() => createQuickEntryDraft(mod, currentFactoryId || ''));
@@ -295,7 +295,6 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
         validRows,
         currentFactoryId,
         data.rateMasters,
-        entry => addItem('entries', entry),
       );
       failures.forEach((message, rowId) => failedRows.set(rowId, message));
 
@@ -307,7 +306,10 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
         return remaining.length > 0 ? remaining : [emptyRow(mod)];
       });
 
-      if (savedCount > 0) toast.success(`${savedCount} ${savedCount === 1 ? 'entry' : 'entries'} saved`);
+      if (savedCount > 0) {
+        await refreshData();
+        toast.success(`${savedCount} ${savedCount === 1 ? 'entry' : 'entries'} saved`);
+      }
       if (failedRows.size > 0) toast.error(`${failedRows.size} ${failedRows.size === 1 ? 'entry was' : 'entries were'} not saved. Please correct the marked rows and try again.`);
     } finally {
       setSaving(false);
@@ -440,17 +442,18 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
         createdAt: new Date().toISOString(),
       };
 
-      const result = await addItem('entries', entry);
-      if (result.error) {
-        const saveMessage = `Quick entry was not saved. ${result.error}`;
+      const { error } = await saveProductionEntryWithConsumption(supabase, entry);
+      if (error) {
+        const saveMessage = `Quick entry was not saved. ${error}`;
         setQuickError(saveMessage);
         toast.error(saveMessage);
         return;
       }
 
-      toast.success('Quick entry saved');
+      toast.success('Output saved. Material stock updated.');
       setQuickError('');
       clearQuickDraft();
+      await refreshData();
       setQuickForm(prev => prefillQuickEntryAfterSave(prev, quickFactoryId));
     } finally {
       setSaving(false);

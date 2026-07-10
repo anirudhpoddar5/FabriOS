@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { saveProductionEntryWithConsumption } from '@/lib/material-auto-consumption';
 
 function findActiveRate(rateMasters: RateMaster[], factoryId: string, shiftId: string, workerTypeId: string, date: string): RateMaster | null {
   return rateMasters.find(r =>
@@ -36,7 +37,7 @@ interface ColourwayOption {
 }
 
 export default function SingleEntryForm({ defaultModule }: Props) {
-  const { data, addItem, currentFactoryId, setCurrentFactoryId } = useData();
+  const { data, refreshData, currentFactoryId, setCurrentFactoryId } = useData();
   const [form, setForm] = useState({
     date: new Date().toISOString().slice(0, 10),
     module: (defaultModule || 'printing') as 'printing' | 'stitching',
@@ -160,9 +161,12 @@ export default function SingleEntryForm({ defaultModule }: Props) {
       notes: form.notes, createdAt: new Date().toISOString(),
     };
 
-    const result = await addItem('entries', entry);
+    const result = await saveProductionEntryWithConsumption(supabase, entry);
     if (result.error) { toast.error(`Failed to save: ${result.error}`); return; }
-    toast.success('Entry saved');
+    await refreshData();
+    toast.success(result.data?.consumptionStatus === 'consumed'
+      ? 'Output saved. Material stock updated.'
+      : 'Output saved. No BOM material was deducted.');
     setForm(prev => ({ ...prev, orderId: '', colourwayId: '', personsUsed: 0, outputQty: 0, notes: '' }));
     setOrderRows([]);
   };

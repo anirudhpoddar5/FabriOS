@@ -130,6 +130,84 @@ export type Database = {
           },
         ]
       }
+      production_material_consumptions: {
+        Row: {
+          actual_qty: number
+          bom_line_id: string
+          company_id: string
+          created_at: string
+          id: string
+          is_overridden: boolean
+          item_id: string
+          order_id: string
+          planned_qty: number
+          production_entry_id: string
+          uom: string | null
+        }
+        Insert: {
+          actual_qty?: number
+          bom_line_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_overridden?: boolean
+          item_id: string
+          order_id: string
+          planned_qty?: number
+          production_entry_id: string
+          uom?: string | null
+        }
+        Update: {
+          actual_qty?: number
+          bom_line_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_overridden?: boolean
+          item_id?: string
+          order_id?: string
+          planned_qty?: number
+          production_entry_id?: string
+          uom?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_material_consumptions_bom_line_id_fkey"
+            columns: ["bom_line_id"]
+            isOneToOne: false
+            referencedRelation: "bom_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_headers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "production_material_consumptions_production_entry_id_fkey"
+            columns: ["production_entry_id"]
+            isOneToOne: false
+            referencedRelation: "production_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buyers: {
         Row: {
           address: string | null
@@ -1813,6 +1891,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      save_production_entry_with_consumption: {
+        Args: { payload: Json }
+        Returns: Json
       }
     }
     Enums: {
