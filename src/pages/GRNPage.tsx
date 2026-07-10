@@ -283,8 +283,10 @@ export default function GRNPage() {
     if (!confirm(`Delete ${selectedIds.size} GRN(s)?`)) return;
     try {
       for (const id of selectedIds) {
-        await supabase.from('grn_lines').delete().eq('grn_id', id);
-        await supabase.from('grn_headers').delete().eq('id', id);
+        const { error: lineErr } = await supabase.from('grn_lines').delete().eq('grn_id', id);
+        if (lineErr) { toast.error(`Delete failed: ${lineErr.message}`); return; }
+        const { error: grnErr } = await supabase.from('grn_headers').delete().eq('id', id);
+        if (grnErr) { toast.error(`Delete failed: ${grnErr.message}`); return; }
       }
       qc.invalidateQueries({ queryKey: ['grn_headers'] });
       setSelectedIds(new Set());

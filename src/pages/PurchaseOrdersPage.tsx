@@ -170,8 +170,10 @@ export default function PurchaseOrdersPage() {
     if (!confirm(`Delete ${selectedIds.size} PO(s)?`)) return;
     try {
       for (const id of selectedIds) {
-        await supabase.from('purchase_order_lines').delete().eq('po_id', id);
-        await supabase.from('purchase_orders').delete().eq('id', id);
+        const { error: lineErr } = await supabase.from('purchase_order_lines').delete().eq('po_id', id);
+        if (lineErr) { toast.error(`Delete failed: ${lineErr.message}`); return; }
+        const { error: poErr } = await supabase.from('purchase_orders').delete().eq('id', id);
+        if (poErr) { toast.error(`Delete failed: ${poErr.message}`); return; }
       }
       qc.invalidateQueries({ queryKey: ['purchase_orders'] });
       setSelectedIds(new Set());
@@ -183,7 +185,8 @@ export default function PurchaseOrdersPage() {
     if (selectedIds.size === 0) return;
     try {
       for (const id of selectedIds) {
-        await supabase.from('purchase_orders').update({ status }).eq('id', id);
+        const { error } = await supabase.from('purchase_orders').update({ status }).eq('id', id);
+        if (error) { toast.error(`Bulk update failed: ${error.message}`); return; }
       }
       qc.invalidateQueries({ queryKey: ['purchase_orders'] });
       setSelectedIds(new Set());

@@ -198,7 +198,8 @@ export default function DispatchPage() {
     if (!confirm(`Delete ${selectedIds.size} dispatch record(s)?`)) return;
     try {
       for (const id of selectedIds) {
-        await supabase.from('dispatch_records').delete().eq('id', id);
+        const { error } = await supabase.from('dispatch_records').delete().eq('id', id);
+        if (error) { toast.error(`Delete failed: ${error.message}`); return; }
       }
       qc.invalidateQueries({ queryKey: ['dispatch_records'] });
       setSelectedIds(new Set());

@@ -100,7 +100,8 @@ export default function StockJobsPage() {
     if (!confirm(`Delete ${selectedIds.size} job(s)?`)) return;
     try {
       for (const id of selectedIds) {
-        await supabase.from('stock_jobs').delete().eq('id', id);
+        const { error } = await supabase.from('stock_jobs').delete().eq('id', id);
+        if (error) { toast.error(`Delete failed: ${error.message}`); return; }
       }
       qc.invalidateQueries({ queryKey: ['stock_jobs'] });
       setSelectedIds(new Set());

@@ -295,10 +295,13 @@ export default function PrintingOrdersPage() {
         const { data: rowIds } = await supabase.from('order_rows').select('id').eq('order_id', id);
         const rowIdList = (rowIds || []).map(r => r.id);
         if (rowIdList.length > 0) {
-          await supabase.from('order_colourways').delete().in('order_row_id', rowIdList);
-          await supabase.from('order_rows').delete().in('id', rowIdList);
+          const { error: cwErr } = await supabase.from('order_colourways').delete().in('order_row_id', rowIdList);
+          if (cwErr) { toast.error(`Delete failed: ${cwErr.message}`); return; }
+          const { error: rErr } = await supabase.from('order_rows').delete().in('id', rowIdList);
+          if (rErr) { toast.error(`Delete failed: ${rErr.message}`); return; }
         }
-        await supabase.from('order_headers').delete().eq('id', id);
+        const { error: hErr } = await supabase.from('order_headers').delete().eq('id', id);
+        if (hErr) { toast.error(`Delete failed: ${hErr.message}`); return; }
       }
       await refreshData();
       setSelectedIds(new Set());
@@ -315,7 +318,8 @@ export default function PrintingOrdersPage() {
     setSaving(true);
     try {
       for (const id of selectedIds) {
-        await supabase.from('order_headers').update({ status }).eq('id', id);
+        const { error } = await supabase.from('order_headers').update({ status }).eq('id', id);
+        if (error) { toast.error(`Bulk update failed: ${error.message}`); return; }
       }
       await refreshData();
       setSelectedIds(new Set());

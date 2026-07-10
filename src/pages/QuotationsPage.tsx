@@ -288,8 +288,10 @@ export default function QuotationsPage() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} quotation(s)?`)) return;
     for (const id of selectedIds) {
-      await supabase.from('quotation_lines').delete().eq('quotation_id', id);
-      await supabase.from('quotations').delete().eq('id', id);
+      const { error: le } = await supabase.from('quotation_lines').delete().eq('quotation_id', id);
+      if (le) { toast.error(`Delete failed: ${le.message}`); return; }
+      const { error: he } = await supabase.from('quotations').delete().eq('id', id);
+      if (he) { toast.error(`Delete failed: ${he.message}`); return; }
     }
     qc.invalidateQueries({ queryKey: ['quotations'] });
     await refreshData();

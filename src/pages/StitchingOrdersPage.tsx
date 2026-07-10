@@ -320,10 +320,13 @@ export default function StitchingOrdersPage() {
         const { data: rowIds } = await supabase.from('order_rows').select('id').eq('order_id', id);
         const rl = (rowIds || []).map(r => r.id);
         if (rl.length > 0) {
-          await supabase.from('order_colourways').delete().in('order_row_id', rl);
-          await supabase.from('order_rows').delete().in('id', rl);
+          const { error: cwErr } = await supabase.from('order_colourways').delete().in('order_row_id', rl);
+          if (cwErr) { toast.error(`Bulk delete failed: ${cwErr.message}`); return; }
+          const { error: rErr } = await supabase.from('order_rows').delete().in('id', rl);
+          if (rErr) { toast.error(`Bulk delete failed: ${rErr.message}`); return; }
         }
-        await supabase.from('order_headers').delete().eq('id', id);
+        const { error: hErr } = await supabase.from('order_headers').delete().eq('id', id);
+        if (hErr) { toast.error(`Bulk delete failed: ${hErr.message}`); return; }
       }
       await refreshData();
       setSelectedIds(new Set());
@@ -340,7 +343,8 @@ export default function StitchingOrdersPage() {
     setSaving(true);
     try {
       for (const id of selectedIds) {
-        await supabase.from('order_headers').update({ status }).eq('id', id);
+        const { error } = await supabase.from('order_headers').update({ status }).eq('id', id);
+        if (error) { toast.error(`Bulk update failed: ${error.message}`); return; }
       }
       await refreshData();
       setSelectedIds(new Set());
