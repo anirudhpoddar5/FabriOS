@@ -11,11 +11,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Trash2, Check, X, ClipboardPaste, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface GridRow {
+export interface GridRow {
   id: string; date: string; module: 'printing' | 'stitching'; orderId: string;
   colourwayId: string; orderRowId: string; productLabel: string;
   shiftId: string; resourceId: string; workerTypeId: string;
   personsUsed: number; outputQty: number; valid: boolean; errors: string[]; costPreview: number;
+  saveError?: string;
 }
 
 function emptyRow(mod: 'printing' | 'stitching' = 'printing'): GridRow {
@@ -34,6 +35,33 @@ function findRate(rateMasters: RateMaster[], factoryId: string, shiftId: string,
   ) || null;
 }
 
+export async function saveBulkEntries(
+  rows: GridRow[],
+  factoryId: string,
+  rateMasters: RateMaster[],
+  addEntry: (entry: ProductionEntry) => Promise<{ error: string | null }>,
+): Promise<Map<string, string>> {
+  const failures = new Map<string, string>();
+  for (const row of rows) {
+    const rate = findRate(rateMasters, factoryId, row.shiftId, row.workerTypeId, row.date);
+    if (!rate) {
+      failures.set(row.id, 'No active rate found');
+      continue;
+    }
+    const entry: ProductionEntry = {
+      id: generateId(), date: row.date, module: row.module, orderId: row.orderId,
+      orderRowId: row.orderRowId || undefined,
+      colourwayId: row.colourwayId, factoryId, shiftId: row.shiftId,
+      resourceId: row.resourceId, workerTypeId: row.workerTypeId, personsUsed: row.personsUsed,
+      outputQty: row.outputQty, outputUOM: '', rateMasterId: rate.id, rateBasis: rate.rateBasis,
+      rateValue: rate.rateValue, costAmount: row.costPreview, createdAt: new Date().toISOString(),
+    };
+    const result = await addEntry(entry);
+    if (result.error) failures.set(row.id, result.error);
+  }
+  return failures;
+}
+
 interface ColourwayOption {
   id: string;
   colourName: string;
@@ -48,6 +76,7 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
   const mod = defaultModule || 'printing';
   const [rows, setRows] = useState<GridRow[]>([emptyRow(mod)]);
   const [orderRowsCache, setOrderRowsCache] = useState<Record<string, any[]>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!currentFactoryId && data.factories.length === 1) setCurrentFactoryId(data.factories[0].id);
@@ -121,7 +150,7 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
       const updated = { ...r, [field]: value };
       if (field === 'module') { updated.orderId = ''; updated.colourwayId = ''; updated.resourceId = ''; updated.workerTypeId = ''; }
       if (field === 'orderId') { updated.colourwayId = ''; loadOrderRows(value, updated.module); }
-      return validateRow(updated);
+      return { ...validateRow(updated), saveError: undefined };
     }));
   };
 
@@ -158,24 +187,35 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
   const totalCost = rows.reduce((s, r) => s + r.costPreview, 0);
   const totalOutput = rows.reduce((s, r) => s + r.outputQty, 0);
 
-  const handleSaveAll = () => {
+  const handleSaveAll = async () => {
     if (!currentFactoryId) { toast.error('Select a factory first'); return; }
     const validRows = rows.filter(r => r.valid);
     if (validRows.length === 0) { toast.error('No valid rows to save'); return; }
-    validRows.forEach(row => {
-      const rate = findRate(data.rateMasters, currentFactoryId, row.shiftId, row.workerTypeId, row.date)!;
-      const entry: ProductionEntry = {
-        id: generateId(), date: row.date, module: row.module, orderId: row.orderId,
-        orderRowId: row.orderRowId || undefined,
-        colourwayId: row.colourwayId, factoryId: currentFactoryId, shiftId: row.shiftId,
-        resourceId: row.resourceId, workerTypeId: row.workerTypeId, personsUsed: row.personsUsed,
-        outputQty: row.outputQty, outputUOM: '', rateMasterId: rate.id, rateBasis: rate.rateBasis,
-        rateValue: rate.rateValue, costAmount: row.costPreview, createdAt: new Date().toISOString(),
-      };
-      addItem('entries', entry);
-    });
-    toast.success(`Saved ${validRows.length} entries`);
-    setRows([emptyRow(mod)]);
+    setSaving(true);
+    const failedRows = new Map<string, string>();
+
+    try {
+      const failures = await saveBulkEntries(
+        validRows,
+        currentFactoryId,
+        data.rateMasters,
+        entry => addItem('entries', entry),
+      );
+      failures.forEach((message, rowId) => failedRows.set(rowId, message));
+
+      const savedCount = validRows.length - failedRows.size;
+      setRows(previous => {
+        const remaining = previous
+          .filter(row => !row.valid || failedRows.has(row.id))
+          .map(row => failedRows.has(row.id) ? { ...row, saveError: failedRows.get(row.id) } : row);
+        return remaining.length > 0 ? remaining : [emptyRow(mod)];
+      });
+
+      if (savedCount > 0) toast.success(`${savedCount} ${savedCount === 1 ? 'entry' : 'entries'} saved`);
+      if (failedRows.size > 0) toast.error(`${failedRows.size} ${failedRows.size === 1 ? 'entry was' : 'entries were'} not saved. Please correct the marked rows and try again.`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getResources = (row: GridRow) => {
@@ -215,7 +255,7 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={addRow}><Plus className="h-3 w-3 mr-1" /> Row</Button>
-            <Button size="sm" onClick={handleSaveAll} disabled={validCount === 0 || noFactory}>Save {validCount} Entries</Button>
+            <Button size="sm" onClick={handleSaveAll} disabled={saving || validCount === 0 || noFactory}>{saving ? 'Saving...' : `Save ${validCount} Entries`}</Button>
           </div>
         </div>
         <div className="border rounded-md overflow-x-auto">
@@ -240,7 +280,7 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
               {rows.map(row => {
                 const cwGroups = colourwayOptionsForRow(row);
                 return (
-                  <TableRow key={row.id} className={row.errors.length > 0 && (row.orderId || row.shiftId) ? 'bg-destructive/5' : ''}>
+                  <TableRow key={row.id} className={row.saveError || (row.errors.length > 0 && (row.orderId || row.shiftId)) ? 'bg-destructive/5' : ''}>
                     <TableCell className="py-1"><Input className="h-7 text-[11px]" type="date" value={row.date} onChange={e => updateRow(row.id, 'date', e.target.value)} /></TableCell>
                     <TableCell className="py-1">
                       <Select value={row.module} onValueChange={v => updateRow(row.id, 'module', v)}>
@@ -321,7 +361,7 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
                     <TableCell className="py-1"><Input className="h-7 text-[11px]" type="number" min={0} value={row.outputQty} onChange={e => updateRow(row.id, 'outputQty', parseFloat(e.target.value) || 0)} /></TableCell>
                     <TableCell className="py-1 text-[11px] font-mono">₹{row.costPreview.toFixed(0)}</TableCell>
                     <TableCell className="py-1">
-                      {row.valid ? <Check className="h-3.5 w-3.5 text-green-600" /> : row.errors.length > 0 && (row.orderId || row.shiftId) ? <span title={row.errors.join(', ')}><X className="h-3.5 w-3.5 text-destructive" /></span> : null}
+                      {row.saveError ? <span title={row.saveError}><X className="h-3.5 w-3.5 text-destructive" /></span> : row.valid ? <Check className="h-3.5 w-3.5 text-green-600" /> : row.errors.length > 0 && (row.orderId || row.shiftId) ? <span title={row.errors.join(', ')}><X className="h-3.5 w-3.5 text-destructive" /></span> : null}
                     </TableCell>
                     <TableCell className="py-1">{rows.length > 1 && <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeRow(row.id)}><Trash2 className="h-3 w-3" /></Button>}</TableCell>
                   </TableRow>
