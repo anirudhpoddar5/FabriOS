@@ -12,6 +12,7 @@ import { ArrowLeft, Printer, Download, ShoppingBag, FileText, Package, ShoppingC
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { printDetailPage } from '@/lib/pdf-export';
+import { calculatePurchaseOrderTotal } from '@/lib/purchase-order-total';
 
 const CATEGORY_COLORS: Record<string, string> = {
   fabric: 'bg-blue-100 text-blue-800',
@@ -87,7 +88,7 @@ export default function BOMDetailPage() {
         if (!vendor) throw new Error(`Vendor "${vendorName}" not found`);
 
         const poNumber = `PO-${Date.now().toString(36).toUpperCase()}`;
-        const totalAmt = vLines.reduce((s, l) => s + (Number(l.total_amount) || 0), 0) || null;
+        const totalAmt = calculatePurchaseOrderTotal(vLines);
 
         const { data: po, error } = await supabase.from('purchase_orders').insert({
           po_number: poNumber, vendor_id: vendor.id, po_date: new Date().toISOString().slice(0, 10),
