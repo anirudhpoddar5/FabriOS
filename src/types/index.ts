@@ -145,6 +145,7 @@ export interface PrintingOrder extends OrderHeader, OrderRow {
 
 export interface PrintingColourway {
   id: string;
+  orderRowId: string;
   orderId: string;
   colourName: string;
   orderedQty: number;
@@ -160,6 +161,7 @@ export interface StitchingOrder extends OrderHeader, OrderRow {
 
 export interface StitchingColourway {
   id: string;
+  orderRowId: string;
   orderId: string;
   colourName: string;
   orderedQty: number;
@@ -202,6 +204,7 @@ export interface AppData {
   stitchingLines: StitchingLine[];
   printingProducts: PrintingProduct[];
   stitchingProducts: StitchingProduct[];
+  orderRows: Array<OrderRow & { id: string; orderId: string; productId?: string }>;
   printingOrders: PrintingOrder[];
   printingColourways: PrintingColourway[];
   stitchingOrders: StitchingOrder[];

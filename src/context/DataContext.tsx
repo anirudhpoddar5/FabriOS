@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { AppData } from '@/types';
 import { dbToFrontend, frontendToDb, COMPANY_TABLES, ORDER_HEADER_COLS, ORDER_ROW_COLS } from '@/lib/data-utils';
+import { separateOrderData } from '@/lib/order-data';
 
 // Maps AppData keys to Supabase table names
 const TABLE_MAP: Record<keyof AppData, string> = {
@@ -28,12 +29,14 @@ const TABLE_MAP: Record<keyof AppData, string> = {
   quotationLines: 'quotation_lines',
   invoices: 'invoices',
   subcontractJobs: 'subcontract_jobs',
+  orderRows: 'order_rows',
 };
 
 const defaultData: AppData = {
   users: [], companies: [], factories: [], shifts: [], workerTypes: [], rateMasters: [],
   buyers: [], fabrics: [], printingTables: [], stitchingLines: [],
   printingProducts: [], stitchingProducts: [],
+  orderRows: [],
   printingOrders: [], printingColourways: [],
   stitchingOrders: [], stitchingColourways: [],
   entries: [],
@@ -130,49 +133,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const allOrders = (orderHeaders.data || []).map(dbToFrontend);
       const allRows = (orderRows.data || []).map(dbToFrontend);
 
-      // Merge order_rows data into each order (orderQty, fabricId, uom, etc. live in order_rows)
-      const rowByOrderId: Record<string, unknown> = {};
-      allRows.forEach((r: any) => { rowByOrderId[r.orderId] = r; });
-
-      const mergeOrderRow = (order: any) => {
-        const row = rowByOrderId[order.id] as Record<string, unknown> | undefined;
-        if (!row) return order;
-        return {
-          ...order,
-          orderQty: row.orderQty,
-          chartQty: row.chartQty,
-          fabricId: row.fabricId,
-          fabricWidth: row.fabricWidth,
-          uom: row.uom,
-          ratePerItem: row.ratePerItem,
-          noOfColours: row.noOfColours,
-          printingProductId: row.productId,
-          stitchingProductId: row.productId,
-        };
-      };
-
-      const printingOrders = allOrders.filter((o: any) => o.module === 'printing').map(mergeOrderRow);
-      const stitchingOrders = allOrders.filter((o: any) => o.module === 'stitching').map(mergeOrderRow);
-
-      // Get order row IDs grouped by module
-      const printingOrderIds = new Set(printingOrders.map((o: any) => o.id));
-      const stitchingOrderIds = new Set(stitchingOrders.map((o: any) => o.id));
-      const printingRowIds = new Set(allRows.filter((r: any) => printingOrderIds.has(r.orderId)).map((r: any) => r.id));
-      const stitchingRowIds = new Set(allRows.filter((r: any) => stitchingOrderIds.has(r.orderId)).map((r: any) => r.id));
-
-      // Split colourways by module  
       const allColourways = (orderColourways.data || []).map(dbToFrontend);
-      const printingColourways = allColourways.filter((c: any) => printingRowIds.has(c.orderRowId));
-      const stitchingColourways = allColourways.filter((c: any) => stitchingRowIds.has(c.orderRowId));
-
-      // For backward compatibility, map colourway.orderRowId → orderId
-      const rowToOrder: Record<string, string> = {};
-      allRows.forEach((r: any) => { rowToOrder[r.id] = r.orderId; });
-      
-      const mapColourway = (c: any) => ({
-        ...c,
-        orderId: rowToOrder[c.orderRowId] || c.orderRowId,
-      });
+      const relatedOrders = separateOrderData(allOrders, allRows, allColourways);
 
       setData({
         users: (profiles.data || []).map(dbToFrontend) as any,
@@ -187,10 +149,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         stitchingLines: (stitchingLines.data || []).map(dbToFrontend) as any,
         workerTypes: (workerTypes.data || []).map(dbToFrontend) as any,
         rateMasters: (rateMasters.data || []).map(dbToFrontend) as any,
-        printingOrders: printingOrders as any,
-        printingColourways: printingColourways.map(mapColourway) as any,
-        stitchingOrders: stitchingOrders as any,
-        stitchingColourways: stitchingColourways.map(mapColourway) as any,
+        printingOrders: relatedOrders.printingOrders as any,
+        printingColourways: relatedOrders.printingColourways as any,
+        stitchingOrders: relatedOrders.stitchingOrders as any,
+        stitchingColourways: relatedOrders.stitchingColourways as any,
+        orderRows: relatedOrders.orderRows as any,
         entries: (entries.data || []).map(dbToFrontend) as any,
         workers: (workers.data || []).map(dbToFrontend) as any,
         quotations: (quotations.data || []).map(dbToFrontend) as any,
