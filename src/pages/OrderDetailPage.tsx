@@ -160,6 +160,12 @@ export default function OrderDetailPage() {
     return data.buyers.find((b: any) => b.id === order.buyerId);
   }, [data, order]);
 
+  const delayTarget = useMemo(() => {
+    if (!order) return null;
+    const result = getOrderDelay(order, colourways, entries, new Date(), workingDays);
+    return result;
+  }, [order, colourways, entries, workingDays]);
+
   const enrichRow = (row: any) => {
     const product = isPrinting
       ? data.printingProducts.find((p: any) => p.id === row.product_id)
@@ -188,12 +194,6 @@ export default function OrderDetailPage() {
   const derivedStatus = getOrderBadge(order.status, entries.length, order.targetEndDate, progressPct);
 
   const enrichedRows = rows.map(enrichRow);
-
-  const delayTarget = useMemo(() => {
-    if (!order) return null;
-    const result = getOrderDelay(order, colourways, entries, new Date(), workingDays);
-    return result;
-  }, [order, colourways, entries, workingDays]);
 
   const handlePrint = () => {
     const sections = [
