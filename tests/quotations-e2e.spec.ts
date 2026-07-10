@@ -201,4 +201,15 @@ test('QT-06 change quotation to accepted and convert to order', async ({ page })
   await convertBtn.click();
   await page.waitForTimeout(3000);
   await noError(page);
+
+  // The converted order must retain the source quotation link.
+  const admin = getSupabaseAdmin();
+  const { data: convertedOrder, error } = await admin
+    .from('order_headers')
+    .select('id, quotation_id')
+    .eq('quotation_id', S.quotationId)
+    .single();
+  expect(error).toBeNull();
+  expect(convertedOrder?.quotation_id).toBe(S.quotationId);
+  S.orderId = convertedOrder?.id;
 });

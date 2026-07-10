@@ -713,6 +713,7 @@ export type Database = {
           id: string
           internal_po: string
           module: string
+          quotation_id: string | null
           remarks: string | null
           status: string
           style: string | null
@@ -730,6 +731,7 @@ export type Database = {
           id?: string
           internal_po: string
           module: string
+          quotation_id?: string | null
           remarks?: string | null
           status?: string
           style?: string | null
@@ -747,6 +749,7 @@ export type Database = {
           id?: string
           internal_po?: string
           module?: string
+          quotation_id?: string | null
           remarks?: string | null
           status?: string
           style?: string | null
