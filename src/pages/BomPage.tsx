@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExplainerTip } from '@/components/ExplainerTip';
 import { usePagination } from '@/hooks/use-pagination';
 import DataTablePagination from '@/components/DataTablePagination';
+import { buildBomLinePayloads } from '@/lib/bom-line-save';
 
 const CATEGORIES = ['fabric', 'trim', 'accessory', 'other'];
 
@@ -105,14 +106,7 @@ export default function BomPage() {
         if (error) throw error;
         await supabase.from('bom_lines').delete().eq('bom_id', editingId);
         if (lines.length > 0) {
-          const rows = lines.map((l, i) => ({
-            bom_id: editingId, category: l.category || 'fabric', item_name: l.item_name || '',
-            item_id: l.item_id || null, quantity: Number(l.quantity) || 0,
-            avg_consumption: Number(l.avg_consumption) || 0, extra_pct: Number(l.extra_pct) || 0,
-            rate: Number(l.rate) || 0, total_amount: Number(l.total_amount) || null,
-            uom: l.uom || '', vendor_name: l.vendor_name || null, remarks: l.remarks || null,
-            sort_order: i,
-          }));
+          const rows = buildBomLinePayloads(editingId, lines);
           const { error: le } = await supabase.from('bom_lines').insert(rows);
           if (le) throw le;
         }
@@ -124,14 +118,7 @@ export default function BomPage() {
         });
         if (error) throw error;
         if (lines.length > 0) {
-          const rows = lines.map((l, i) => ({
-            bom_id: bomId, category: l.category || 'fabric', item_name: l.item_name || '',
-            item_id: l.item_id || null, quantity: Number(l.quantity) || 0,
-            avg_consumption: Number(l.avg_consumption) || 0, extra_pct: Number(l.extra_pct) || 0,
-            rate: Number(l.rate) || 0, total_amount: Number(l.total_amount) || null,
-            uom: l.uom || '', vendor_name: l.vendor_name || null, remarks: l.remarks || null,
-            sort_order: i,
-          }));
+          const rows = buildBomLinePayloads(bomId, lines);
           const { error: le } = await supabase.from('bom_lines').insert(rows);
           if (le) throw le;
         }
