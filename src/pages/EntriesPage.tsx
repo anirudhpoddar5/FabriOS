@@ -8,22 +8,26 @@ import { ExplainerTip } from '@/components/ExplainerTip';
 
 export default function EntriesPage() {
   const { currentModule } = useAuth();
-  const [tab, setTab] = useState('list');
+  const [tab, setTab] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'quick' : 'office'
+  );
 
   const defaultModule = currentModule === 'stitching' ? 'stitching' : currentModule === 'printing' ? 'printing' : undefined;
 
   return (
     <div>
-      <h1 className="text-lg font-semibold mb-3 flex items-center gap-2">Production Entries <ExplainerTip text="Log daily production output by order, colourway, shift, and worker type. Labour costs are auto-calculated from rate masters. Use Bulk Entry for multi-row data entry." /></h1>
+      <h1 className="text-lg font-semibold mb-3 flex items-center gap-2">Production Entries <ExplainerTip text="Log daily production output by order, colourway, shift, and worker type. Labour costs are auto-calculated from rate masters." /></h1>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="list">Entry List</TabsTrigger>
           <TabsTrigger value="single">Single Entry</TabsTrigger>
-          <TabsTrigger value="bulk">Bulk Entry Grid</TabsTrigger>
+          <TabsTrigger value="quick">Quick Entry</TabsTrigger>
+          <TabsTrigger value="office">Office Grid</TabsTrigger>
         </TabsList>
         <TabsContent value="list"><EntryList /></TabsContent>
         <TabsContent value="single"><SingleEntryForm defaultModule={defaultModule} /></TabsContent>
-        <TabsContent value="bulk"><BulkEntryGrid defaultModule={defaultModule} /></TabsContent>
+        <TabsContent value="quick"><BulkEntryGrid defaultModule={defaultModule} mode="quick" /></TabsContent>
+        <TabsContent value="office"><BulkEntryGrid defaultModule={defaultModule} mode="office" /></TabsContent>
       </Tabs>
     </div>
   );

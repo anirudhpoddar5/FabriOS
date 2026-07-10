@@ -4,12 +4,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { RateMaster, ProductionEntry } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Trash2, Check, X, ClipboardPaste, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { SaveButton } from '@/components/SaveButton';
+import { useFormDraft } from '@/hooks/use-form-draft';
 
 export interface GridRow {
   id: string; date: string; module: 'printing' | 'stitching'; orderId: string;
@@ -67,20 +70,112 @@ interface ColourwayOption {
   colourName: string;
   orderRowId: string;
   productLabel: string;
+  uom: string;
 }
 
-interface Props { defaultModule?: 'printing' | 'stitching'; }
+export interface QuickEntryDraft {
+  date: string;
+  module: 'printing' | 'stitching';
+  factoryId: string;
+  orderId: string;
+  colourwayId: string;
+  shiftId: string;
+  resourceId: string;
+  workerTypeId: string;
+  personsUsed: number;
+  outputQty: number;
+  outputUOM: string;
+}
 
-export default function BulkEntryGrid({ defaultModule }: Props) {
+export const QUICK_ENTRY_DRAFT_KEY = 'fabrios:draft:bulk-entry:quick';
+
+export function createQuickEntryDraft(
+  defaultModule: 'printing' | 'stitching' = 'printing',
+  factoryId = '',
+): QuickEntryDraft {
+  return {
+    date: new Date().toISOString().slice(0, 10),
+    module: defaultModule,
+    factoryId,
+    orderId: '',
+    colourwayId: '',
+    shiftId: '',
+    resourceId: '',
+    workerTypeId: '',
+    personsUsed: 0,
+    outputQty: 0,
+    outputUOM: '',
+  };
+}
+
+export function prefillQuickEntryAfterSave(saved: QuickEntryDraft, factoryId: string): QuickEntryDraft {
+  return {
+    ...saved,
+    factoryId,
+    orderId: '',
+    colourwayId: '',
+    outputQty: 0,
+  };
+}
+
+export function hasUnfinishedQuickEntry(draft: QuickEntryDraft): boolean {
+  return Boolean(
+    draft.orderId ||
+    draft.colourwayId ||
+    draft.outputQty > 0 ||
+    draft.personsUsed > 0 ||
+    draft.outputUOM.trim(),
+  );
+}
+
+interface Props {
+  defaultModule?: 'printing' | 'stitching';
+  mode?: 'quick' | 'office';
+}
+
+export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props) {
   const { data, addItem, currentFactoryId, setCurrentFactoryId } = useData();
   const mod = defaultModule || 'printing';
   const [rows, setRows] = useState<GridRow[]>([emptyRow(mod)]);
+  const [quickForm, setQuickForm] = useState<QuickEntryDraft>(() => createQuickEntryDraft(mod, currentFactoryId || ''));
+  const [quickError, setQuickError] = useState('');
+  const [quickResourceCache, setQuickResourceCache] = useState<Record<string, any[]>>({});
   const [orderRowsCache, setOrderRowsCache] = useState<Record<string, any[]>>({});
   const [saving, setSaving] = useState(false);
+
+  const clearQuickDraft = useFormDraft(
+    QUICK_ENTRY_DRAFT_KEY,
+    quickForm,
+    mode === 'quick',
+    draft => setQuickForm({ ...createQuickEntryDraft(mod, currentFactoryId || ''), ...draft }),
+  );
 
   useEffect(() => {
     if (!currentFactoryId && data.factories.length === 1) setCurrentFactoryId(data.factories[0].id);
   }, [currentFactoryId, data.factories, setCurrentFactoryId]);
+
+  useEffect(() => {
+    if (currentFactoryId && quickForm.factoryId !== currentFactoryId) {
+      setQuickForm(prev => ({ ...prev, factoryId: currentFactoryId }));
+    }
+  }, [currentFactoryId, quickForm.factoryId]);
+
+  useEffect(() => {
+    if (defaultModule) {
+      setRows(prev => prev.map(row => row.orderId || row.shiftId ? row : emptyRow(defaultModule)));
+      setQuickForm(prev => {
+        if (prev.module === defaultModule || hasUnfinishedQuickEntry(prev)) return prev;
+        return {
+          ...prev,
+          module: defaultModule,
+          orderId: '',
+          colourwayId: '',
+          resourceId: '',
+          workerTypeId: '',
+        };
+      });
+    }
+  }, [defaultModule]);
 
   const noFactory = !currentFactoryId;
 
@@ -103,6 +198,7 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
           colourName: cw.colourName,
           orderRowId: row.id,
           productLabel: row.productLabel || '',
+          uom: cw.uom || row.uom || '',
         });
       }
     }
@@ -228,6 +324,139 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
   const workerLabel = (w: { name: string; module: string }) => w.module === 'both' ? `${w.name} (Both)` : `${w.name} (${w.module === 'printing' ? 'P' : 'S'})`;
   const shifts = data.shifts.filter(s => s.active && (!currentFactoryId || s.factoryId === currentFactoryId));
 
+  const updateQuickForm = (field: keyof QuickEntryDraft, value: any) => {
+    setQuickError('');
+    setQuickForm(prev => {
+      const updated = { ...prev, [field]: value };
+      if (field === 'factoryId') {
+        updated.shiftId = '';
+        updated.resourceId = '';
+        setCurrentFactoryId(value || null);
+      }
+      if (field === 'module') {
+        updated.orderId = '';
+        updated.colourwayId = '';
+        updated.resourceId = '';
+        updated.workerTypeId = '';
+      }
+      if (field === 'orderId') {
+        updated.colourwayId = '';
+        loadOrderRows(value, updated.module);
+      }
+      if (field === 'colourwayId') {
+        const cw = getColourwayOptions(updated.orderId, updated.module).find(option => option.id === value);
+        if (cw?.uom && !updated.outputUOM) updated.outputUOM = cw.uom;
+      }
+      return updated;
+    });
+  };
+
+  const quickFactoryId = quickForm.factoryId || currentFactoryId || '';
+
+  useEffect(() => {
+    if (mode !== 'quick' || !quickFactoryId) return;
+    const cacheKey = `${quickForm.module}:${quickFactoryId}`;
+    if (quickResourceCache[cacheKey]) return;
+    const table = quickForm.module === 'printing' ? 'printing_tables' : 'stitching_lines';
+    supabase.from(table).select('*').eq('factory_id', quickFactoryId).then(({ data: resources }) => {
+      if (!resources) return;
+      setQuickResourceCache(prev => ({
+        ...prev,
+        [cacheKey]: resources.map((resource: any) => ({
+          ...resource,
+          factoryId: resource.factory_id,
+          active: resource.is_active,
+          supervisorName: resource.supervisor_name,
+        })),
+      }));
+    });
+  }, [mode, quickFactoryId, quickForm.module, quickResourceCache]);
+
+  const quickOrders = quickForm.module === 'printing'
+    ? data.printingOrders.filter(o => o.status !== 'Cancelled')
+    : data.stitchingOrders.filter(o => o.status !== 'Cancelled');
+  const quickColourways = getColourwayOptions(quickForm.orderId, quickForm.module);
+  const quickSelectedColourway = quickColourways.find(c => c.id === quickForm.colourwayId);
+  const quickShifts = data.shifts.filter(s => s.active && (!quickFactoryId || s.factoryId === quickFactoryId));
+  const quickResources = quickFactoryId
+    ? [
+      ...(quickForm.module === 'printing'
+        ? data.printingTables.filter(t => t.active && t.factoryId === quickFactoryId)
+        : data.stitchingLines.filter(l => l.active && l.factoryId === quickFactoryId)),
+      ...(quickResourceCache[`${quickForm.module}:${quickFactoryId}`] || []).filter(r => r.active),
+    ].filter((resource, index, list) => list.findIndex(item => item.id === resource.id) === index)
+    : [];
+  const quickWorkerTypes = filteredWorkerTypes(quickForm.module);
+  const quickRate = quickFactoryId && quickForm.shiftId && quickForm.workerTypeId
+    ? findRate(data.rateMasters, quickFactoryId, quickForm.shiftId, quickForm.workerTypeId, quickForm.date)
+    : null;
+  const quickCost = quickRate
+    ? quickRate.rateBasis === 'per_person_per_shift'
+      ? quickForm.personsUsed * quickRate.rateValue
+      : quickForm.outputQty * quickRate.rateValue
+    : 0;
+  const quickResourceLabel = quickForm.module === 'printing' ? 'Table' : 'Line';
+
+  const quickValidationMessage = () => {
+    if (!quickFactoryId) return 'Quick entry was not saved. Select a factory first.';
+    if (!quickForm.orderId) return 'Quick entry was not saved. Select an order.';
+    if (!quickForm.colourwayId) return 'Quick entry was not saved. Select a colour.';
+    if (!quickForm.shiftId) return 'Quick entry was not saved. Select a shift.';
+    if (!quickForm.resourceId) return `Quick entry was not saved. Select a ${quickResourceLabel.toLowerCase()}.`;
+    if (!quickForm.workerTypeId) return 'Quick entry was not saved. Select a worker type.';
+    if (quickForm.outputQty <= 0) return 'Quick entry was not saved. Enter an output quantity greater than zero.';
+    if (quickForm.personsUsed < 0) return 'Quick entry was not saved. Persons cannot be negative.';
+    if (!quickRate) return 'Quick entry was not saved. No active rate was found for this shift and worker type.';
+    return '';
+  };
+
+  const handleQuickSave = async () => {
+    const message = quickValidationMessage();
+    if (message) {
+      setQuickError(message);
+      toast.error(message);
+      return;
+    }
+    setSaving(true);
+    try {
+      const entry: ProductionEntry = {
+        id: generateId(),
+        date: quickForm.date,
+        module: quickForm.module,
+        orderId: quickForm.orderId,
+        orderRowId: quickSelectedColourway?.orderRowId,
+        colourwayId: quickForm.colourwayId,
+        factoryId: quickFactoryId,
+        shiftId: quickForm.shiftId,
+        resourceId: quickForm.resourceId,
+        workerTypeId: quickForm.workerTypeId,
+        personsUsed: quickForm.personsUsed,
+        outputQty: quickForm.outputQty,
+        outputUOM: quickForm.outputUOM || quickSelectedColourway?.uom || '',
+        rateMasterId: quickRate!.id,
+        rateBasis: quickRate!.rateBasis,
+        rateValue: quickRate!.rateValue,
+        costAmount: quickCost,
+        createdAt: new Date().toISOString(),
+      };
+
+      const result = await addItem('entries', entry);
+      if (result.error) {
+        const saveMessage = `Quick entry was not saved. ${result.error}`;
+        setQuickError(saveMessage);
+        toast.error(saveMessage);
+        return;
+      }
+
+      toast.success('Quick entry saved');
+      setQuickError('');
+      clearQuickDraft();
+      setQuickForm(prev => prefillQuickEntryAfterSave(prev, quickFactoryId));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const colourwayOptionsForRow = (row: GridRow) => {
     const opts = getColourwayOptions(row.orderId, row.module);
     const groups: Record<string, { label: string; items: ColourwayOption[] }> = {};
@@ -238,6 +467,123 @@ export default function BulkEntryGrid({ defaultModule }: Props) {
     }
     return Object.values(groups);
   };
+
+  if (mode === 'quick') {
+    return (
+      <Card className="mt-3">
+        <CardContent className="pt-4 space-y-4">
+          {quickError && (
+            <Alert variant="destructive" className="py-2">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription data-testid="quick-entry-error" className="text-sm">{quickError}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <Label className="text-sm">Date</Label>
+              <Input className="h-12 text-base" type="date" value={quickForm.date} onChange={e => updateQuickForm('date', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">Module</Label>
+              <Select value={quickForm.module} onValueChange={v => updateQuickForm('module', v)}>
+                <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="printing">Printing</SelectItem><SelectItem value="stitching">Stitching</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="text-sm">Factory</Label>
+              <Select value={quickFactoryId} onValueChange={v => updateQuickForm('factoryId', v)}>
+                <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select factory" /></SelectTrigger>
+                <SelectContent>{data.factories.filter(f => f.active).map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <div className="space-y-1">
+              <Label className="text-sm">Order</Label>
+              <Select value={quickForm.orderId} onValueChange={v => updateQuickForm('orderId', v)}>
+                <SelectTrigger data-testid="quick-order" className="h-14 text-base"><SelectValue placeholder="Select order" /></SelectTrigger>
+                <SelectContent>
+                  {quickOrders.map((o: any) => <SelectItem key={o.id} value={o.id}>{o.internalPO}{o.style ? ` - ${o.style}` : ''}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">Colour</Label>
+              <Select value={quickForm.colourwayId} onValueChange={v => updateQuickForm('colourwayId', v)} disabled={!quickForm.orderId}>
+                <SelectTrigger data-testid="quick-colour" className="h-14 text-base"><SelectValue placeholder={quickForm.orderId ? 'Select colour' : 'Select order first'} /></SelectTrigger>
+                <SelectContent>
+                  {(orderRowsCache[quickForm.orderId] || []).length === 0 && quickForm.orderId && (
+                    <SelectItem value="__loading__" disabled>Loading colours...</SelectItem>
+                  )}
+                  {quickColourways.map(cw => (
+                    <SelectItem key={cw.id} value={cw.id}>
+                      {cw.productLabel ? `${cw.productLabel} - ` : ''}{cw.colourName}
+                    </SelectItem>
+                  ))}
+                  {quickForm.orderId && (orderRowsCache[quickForm.orderId]?.length || 0) > 0 && quickColourways.length === 0 && (
+                    <SelectItem value="__none__" disabled>No colourways</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-sm">Shift</Label>
+              <Select value={quickForm.shiftId} onValueChange={v => updateQuickForm('shiftId', v)} disabled={!quickFactoryId}>
+                <SelectTrigger className="h-14 text-base"><SelectValue placeholder="Select shift" /></SelectTrigger>
+                <SelectContent>{quickShifts.length === 0 ? <SelectItem value="__none__" disabled>No shifts</SelectItem> : quickShifts.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">{quickResourceLabel}</Label>
+              <Select value={quickForm.resourceId} onValueChange={v => updateQuickForm('resourceId', v)} disabled={!quickFactoryId}>
+                <SelectTrigger data-testid="quick-resource" data-resource-count={quickResources.length} className="h-14 text-base"><SelectValue placeholder={`Select ${quickResourceLabel.toLowerCase()}`} /></SelectTrigger>
+                <SelectContent>{quickResources.length === 0 ? <SelectItem value="__none__" disabled>No resources</SelectItem> : quickResources.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.code ? `${r.code} - ` : ''}{r.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">Worker Type</Label>
+              <Select value={quickForm.workerTypeId} onValueChange={v => updateQuickForm('workerTypeId', v)}>
+                <SelectTrigger className="h-14 text-base"><SelectValue placeholder="Select worker type" /></SelectTrigger>
+                <SelectContent>{quickWorkerTypes.map(w => <SelectItem key={w.id} value={w.id}>{workerLabel(w)}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">Persons</Label>
+              <Input className="h-14 text-base" type="number" min={0} value={quickForm.personsUsed} onChange={e => updateQuickForm('personsUsed', parseInt(e.target.value) || 0)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
+            <div className="space-y-1">
+              <Label className="text-sm">Output</Label>
+              <Input data-testid="quick-output" className="h-16 text-2xl font-semibold" type="number" min={0} value={quickForm.outputQty || ''} onChange={e => updateQuickForm('outputQty', parseFloat(e.target.value) || 0)} placeholder="0" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-sm">UOM</Label>
+              <Input className="h-16 text-base" value={quickForm.outputUOM} onChange={e => updateQuickForm('outputUOM', e.target.value)} placeholder={quickSelectedColourway?.uom || 'pcs'} />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm">
+              <span className="text-muted-foreground">Cost </span>
+              <span className="font-semibold font-mono">₹{quickCost.toFixed(2)}</span>
+              {quickRate ? <span className="ml-2 text-xs text-muted-foreground">{quickRate.rateBasis.replace(/_/g, ' ')}</span> : null}
+            </div>
+            <SaveButton data-testid="quick-save" className="h-14 text-base sm:min-w-[180px]" saving={saving} onClick={handleQuickSave}>
+              Save Entry
+            </SaveButton>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mt-3">
