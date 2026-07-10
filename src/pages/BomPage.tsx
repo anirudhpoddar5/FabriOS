@@ -167,7 +167,6 @@ export default function BomPage() {
           const qtyOrdered = Math.ceil((Number(l.quantity) || 0) * (Number(l.avg_consumption) || 1) * (1 + (Number(l.extra_pct) || 0) / 100));
           const lineAmount = qtyOrdered * (Number(l.rate) || 0);
           return {
-            po_id: '' as any, // set after po is created
             item_name: l.item_name, item_id: l.item_id || null,
             uom: l.uom || 'meters',
             qty_ordered: qtyOrdered,
@@ -177,22 +176,37 @@ export default function BomPage() {
         });
         const poTotal = poLineRows.reduce((s, l) => s + l.amount, 0);
 
-        const { data: po, error } = await supabase.from('purchase_orders').insert({
-          po_number: poNumber, vendor_id: vendor.id, po_date: new Date().toISOString().slice(0, 10),
-          status: 'draft', source_type: form.bom_type === 'manual' ? 'manual' : 'bom',
-          currency: 'USD', total_amount: poTotal, order_id: sourceRef,
-          company_id: companyId, remarks: `From BOM: ${form.title || editingId?.slice(0, 8)}`,
-        }).select().single();
-        if (error) throw error;
+        const payload: any = {
+          header: {
+            po_number: poNumber,
+            vendor_id: vendor.id,
+            po_date: new Date().toISOString().slice(0, 10),
+            status: 'draft',
+            source_type: form.bom_type === 'manual' ? 'manual' : 'bom',
+            currency: 'USD',
+            total_amount: poTotal,
+            order_id: sourceRef,
+            remarks: `From BOM: ${form.title || editingId?.slice(0, 8)}`,
+          },
+          lines: poLineRows.map((l, idx) => ({
+            item_name: l.item_name,
+            item_id: l.item_id,
+            uom: l.uom,
+            qty_ordered: l.qty_ordered,
+            rate: l.rate,
+            amount: l.amount,
+            sort_order: idx,
+          })),
+        };
 
-        const poLineInserts = poLineRows.map(l => ({ ...l, po_id: po.id }));
-        const { error: lineErr } = await supabase.from('purchase_order_lines').insert(poLineInserts);
-        if (lineErr) throw lineErr;
+        const { error } = await supabase.rpc('save_po_with_lines', { payload });
+        if (error) throw error;
       }
 
       // Update BOM status
       if (editingId) {
-        await supabase.from('bom_headers').update({ status: 'po_generated' }).eq('id', editingId);
+        const { error } = await supabase.from('bom_headers').update({ status: 'po_generated' }).eq('id', editingId);
+        if (error) throw error;
       }
     },
     onSuccess: () => {

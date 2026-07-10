@@ -108,7 +108,8 @@ export default function BOMDetailPage() {
         if (lineErr) throw lineErr;
       }
 
-      await supabase.from('bom_headers').update({ status: 'po_generated' }).eq('id', id);
+      const { error: statusErr } = await supabase.from('bom_headers').update({ status: 'po_generated' }).eq('id', id);
+        if (statusErr) throw statusErr;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bom_detail', id] });

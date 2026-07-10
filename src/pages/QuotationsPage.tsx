@@ -172,7 +172,8 @@ export default function QuotationsPage() {
       if (error) { toast.error(error); return; }
 
       // Replace lines: delete old, insert new
-      await supabase.from('quotation_lines').delete().eq('quotation_id', editingId);
+      const { error: delErr } = await supabase.from('quotation_lines').delete().eq('quotation_id', editingId);
+      if (delErr) { toast.error(delErr.message); return; }
       for (let i = 0; i < lines.length; i++) {
         const l = lines[i];
         if (!l.description) continue;
