@@ -260,6 +260,7 @@ export type Database = {
           legal_name: string | null
           name: string
           updated_at: string
+          working_days: number[]
         }
         Insert: {
           address?: string | null
@@ -270,6 +271,7 @@ export type Database = {
           legal_name?: string | null
           name: string
           updated_at?: string
+          working_days?: number[]
         }
         Update: {
           address?: string | null
@@ -280,6 +282,7 @@ export type Database = {
           legal_name?: string | null
           name?: string
           updated_at?: string
+          working_days?: number[]
         }
         Relationships: []
       }

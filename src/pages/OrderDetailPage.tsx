@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ArrowLeft, Package, DollarSign, TrendingUp, Calendar, AlertTriangle, Printer, Download, Truck, Edit, IndianRupee } from 'lucide-react';
 import { getOrderBadge } from '@/lib/order-status';
+import { getOrderDelay } from '@/lib/order-delay';
 import { printDetailPage } from '@/lib/pdf-export';
 import { toast } from 'sonner';
 
@@ -50,6 +51,7 @@ export default function OrderDetailPage() {
     variance_per_piece: number;
     produced_qty: number;
   } | null>(null);
+  const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5, 6]);
 
   const isPrinting = location.pathname.startsWith('/printing-orders');
   const module = isPrinting ? 'printing' : 'stitching';
@@ -79,6 +81,9 @@ export default function OrderDetailPage() {
     fetchConsumptions();
     supabase.from('order_cost_summary').select('*').eq('order_id', id).single().then(({ data: d }) => {
       if (d) setOrderCost(d);
+    });
+    supabase.from('companies').select('working_days').eq('id', companyId).single().then(({ data: d }) => {
+      if (d?.working_days) setWorkingDays(d.working_days);
     });
   }, [id, companyId]);
 
@@ -183,6 +188,12 @@ export default function OrderDetailPage() {
   const derivedStatus = getOrderBadge(order.status, entries.length, order.targetEndDate, progressPct);
 
   const enrichedRows = rows.map(enrichRow);
+
+  const delayTarget = useMemo(() => {
+    if (!order) return null;
+    const result = getOrderDelay(order, colourways, entries, new Date(), workingDays);
+    return result;
+  }, [order, colourways, entries, workingDays]);
 
   const handlePrint = () => {
     const sections = [
@@ -294,6 +305,67 @@ export default function OrderDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Production Target */}
+      {delayTarget && (
+        <Card className="mb-4">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" /> Production Target
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              <div className="rounded-lg border p-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Remaining</div>
+                <div className="text-sm font-semibold">{delayTarget.remainingQty} units</div>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Required Daily</div>
+                <div className="text-sm font-semibold">{delayTarget.requiredDailyOutput > 0 ? `${delayTarget.requiredDailyOutput.toFixed(1)} units` : '—'}</div>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                  {delayTarget.actualDailyOutput > 0 || new Date().getHours() < 17 ? 'Last Working Day' : "Today's"} Output
+                </div>
+                <div className={`text-sm font-semibold ${delayTarget.actualDailyOutput === 0 && delayTarget.remainingQty > 0 ? 'text-destructive' : 'text-success'}`}>
+                  {delayTarget.actualDailyOutput} units
+                </div>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Working Days Left</div>
+                <div className="text-sm font-semibold">{delayTarget.remainingWorkingDays}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              {delayTarget.exception === 'days_late' && (
+                <span className="text-destructive font-medium flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> {delayTarget.exceptionMessage}
+                </span>
+              )}
+              {delayTarget.exception === 'no_output' && (
+                <span className="text-destructive font-medium flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> {delayTarget.exceptionMessage}
+                </span>
+              )}
+              {delayTarget.exception === 'below_target' && (
+                <span className="text-amber-600 font-medium flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> {delayTarget.exceptionMessage}
+                </span>
+              )}
+              {delayTarget.exception === 'due_today' && (
+                <span className="text-amber-600 font-medium">{delayTarget.exceptionMessage}</span>
+              )}
+              {delayTarget.exception === null && delayTarget.remainingQty > 0 && (
+                <span className="text-success font-medium">On track to meet target</span>
+              )}
+              {delayTarget.exception === null && delayTarget.remainingQty === 0 && (
+                <span className="text-success font-medium">Order complete</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Order Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">

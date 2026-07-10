@@ -16,6 +16,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { GuidedTour } from '@/components/GuidedTour';
 import { getOrderHealth, type OrderHealthState } from '@/lib/order-health';
+import { getOrderDelay } from '@/lib/order-delay';
 
 const ORDER_HEALTH_CONFIG: Record<OrderHealthState, { label: string; badge: string; bg: string; border: string; text: string; dot: string }> = {
   red: { label: 'Late', badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400', bg: 'bg-red-50/40 dark:bg-red-950/10', border: 'border-red-200 dark:border-red-900', text: 'text-red-600', dot: 'bg-red-500' },
@@ -103,6 +104,18 @@ function DashboardContent() {
     },
     enabled: !!companyId,
   });
+
+  const { data: companySettings } = useQuery({
+    queryKey: ['company_dash', companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data } = await supabase.from('companies').select('working_days').eq('id', companyId).single();
+      return data;
+    },
+    enabled: !!companyId,
+  });
+
+  const workingDays: number[] = (companySettings as { working_days?: number[] } | null)?.working_days ?? [1, 2, 3, 4, 5, 6];
 
   const showP = currentModule === 'printing' || currentModule === 'both';
   const showS = currentModule === 'stitching' || currentModule === 'both';
@@ -560,6 +573,71 @@ function DashboardContent() {
               })}
             </div>
           </div>
+        );
+      })()}
+
+      {/* Delay Exceptions */}
+      {(() => {
+        const allActiveOrders = [
+          ...(showP ? printingOrders : []),
+          ...(showS ? stitchingOrders : []),
+        ].filter((o: any) => o.status === 'Started');
+        const allCws = [...data.printingColourways, ...data.stitchingColourways];
+        const allEntries = data.entries;
+
+        const now = new Date();
+        const delayExceptions = allActiveOrders
+          .map((o: any) => {
+            const result = getOrderDelay(o, allCws, allEntries, now, workingDays);
+            const cws = allCws.filter((c: any) => c.orderId === o.id);
+            const orderedQty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0) || o.orderQty || 0;
+            const producedQty = allEntries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + (e.outputQty || 0), 0);
+            return { order: o, orderedQty, producedQty, ...result };
+          })
+          .filter(r => r.exception !== null)
+          .sort((a, b) => {
+            const order: Record<string, number> = { days_late: 0, no_output: 1, below_target: 2, due_today: 3 };
+            return (order[a.exception!] ?? 99) - (order[b.exception!] ?? 99);
+          });
+
+        if (delayExceptions.length === 0) return null;
+
+        return (
+          <Card className="mb-5 border-red-200 dark:border-red-900 bg-red-50/60 dark:bg-red-950/20">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white">
+                  <AlertTriangle className="h-3 w-3" />
+                </div>
+                <span className="text-xs font-semibold text-red-700 dark:text-red-400">Delay Exceptions</span>
+                <Badge variant="destructive" className="text-[9px] h-4">{delayExceptions.length}</Badge>
+              </div>
+              <div className="space-y-1">
+                {delayExceptions.slice(0, 10).map((r: any) => {
+                  const orderId = r.order.id;
+                  const module = r.order.module || 'printing';
+                  return (
+                    <div key={orderId} className="flex items-center gap-3 text-xs px-1 py-0.5 rounded hover:bg-red-100/50 dark:hover:bg-red-900/20 cursor-pointer"
+                      onClick={() => navigate(`/${module === 'stitching' ? 'stitching-orders' : 'printing-orders'}/${orderId}`)}>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="font-medium truncate">{r.order.internalPO}</span>
+                        <span className="text-muted-foreground truncate">{r.order.buyerId ? (data.buyers.find((b: any) => b.id === r.order.buyerId)?.name || '') : ''}</span>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">
+                        {r.exceptionMessage}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground font-mono">
+                        {r.producedQty}/{r.orderedQty}
+                      </span>
+                      <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={e => { e.stopPropagation(); navigate(`/${module === 'stitching' ? 'stitching-orders' : 'printing-orders'}/${orderId}`); }}>
+                        Open
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         );
       })()}
 
