@@ -38,6 +38,25 @@ const QUOTATION_LINE_EMPTY = () => ({
   sortOrder: 0,
 });
 
+// Next number = max existing "Q-####" + 1, not count of records — count breaks
+// as soon as a quotation is deleted (gap) or numbers don't start at 1.
+function computeNextQuotationNumber(numbers: Array<string | null | undefined>): string {
+  let max = 0;
+  for (const n of numbers) {
+    const m = /^Q-(\d+)$/.exec(n || '');
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `Q-${String(max + 1).padStart(4, '0')}`;
+}
+
+// Fresh DB read right before insert — local appData.quotations can be stale
+// (dialog closes before the post-save refreshData() resolves), which is how
+// two back-to-back saves can compute the same "next" number.
+async function fetchNextQuotationNumber(companyId: string): Promise<string> {
+  const { data } = await supabase.from('quotations').select('quotation_number').eq('company_id', companyId);
+  return computeNextQuotationNumber((data || []).map(r => r.quotation_number));
+}
+
 export default function QuotationsPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -93,7 +112,7 @@ export default function QuotationsPage() {
 
   const handleAdd = () => {
     setEditingId(null);
-    const nextNum = `Q-${String(quotations.length + 1).padStart(4, '0')}`;
+    const nextNum = computeNextQuotationNumber(quotations.map((q: any) => q.quotationNumber));
     setForm({
       quotationNumber: nextNum,
       buyerId: '',
@@ -194,30 +213,41 @@ export default function QuotationsPage() {
       if (!companyId) { toast.error('Company details are missing. Please sign in again.'); return; }
       setSaving(true);
       try {
-        await createQuotationWithLines(
-          {
-            company_id: companyId,
-            quotation_number: payload.quotationNumber,
-            buyer_id: payload.buyerId,
-            date: payload.date,
-            valid_until: payload.validUntil,
-            currency: payload.currency,
-            tax_percent: payload.taxPercent,
-            subtotal: payload.subtotal,
-            remarks: payload.remarks,
-            status: payload.status,
-          },
-          lines.map((line, index) => ({ ...line, sortOrder: index })),
-          async header => {
-            const { data: created, error } = await supabase.from('quotations').insert(header).select('id').single();
-            if (error) throw error;
-            return created.id;
-          },
-          async quotationLines => {
-            const { error } = await supabase.from('quotation_lines').insert(quotationLines);
-            if (error) throw error;
-          },
-        );
+        const header = {
+          company_id: companyId,
+          quotation_number: payload.quotationNumber,
+          buyer_id: payload.buyerId,
+          date: payload.date,
+          valid_until: payload.validUntil,
+          currency: payload.currency,
+          tax_percent: payload.taxPercent,
+          subtotal: payload.subtotal,
+          remarks: payload.remarks,
+          status: payload.status,
+        };
+        const rows = lines.map((line, index) => ({ ...line, sortOrder: index }));
+        const insertHeader = async (h: typeof header) => {
+          const { data: created, error } = await supabase.from('quotations').insert(h).select('id').single();
+          if (error) throw error;
+          return created.id;
+        };
+        const insertLines = async (quotationLines: any) => {
+          const { error } = await supabase.from('quotation_lines').insert(quotationLines);
+          if (error) throw error;
+        };
+        try {
+          await createQuotationWithLines(header, rows, insertHeader, insertLines);
+        } catch (err: any) {
+          // Unique-violation on (company_id, quotation_number): someone else (or
+          // a stale local suggestion) grabbed this number first — regenerate
+          // from a fresh DB read and retry once.
+          if (err.code === '23505') {
+            header.quotation_number = await fetchNextQuotationNumber(companyId);
+            await createQuotationWithLines(header, rows, insertHeader, insertLines);
+          } else {
+            throw err;
+          }
+        }
         qc.invalidateQueries({ queryKey: ['quotations'] });
         toast.success('Quotation saved with its items');
       } catch (err: any) {
