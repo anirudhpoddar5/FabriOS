@@ -237,6 +237,7 @@ export default function StitchingOrdersPage() {
     if (!form.buyerId) { toast.error('Buyer is required'); return; }
     if (!form.style) { toast.error('Style is required'); return; }
     if (rows.length === 0 || rows.every((r: any) => !r.stitchingProductId)) { toast.error('At least one product row required'); return; }
+    if (!form.internalPO?.trim()) { toast.error('Internal PO is required'); return; }
     setSaving(true);
 
     try {
@@ -251,6 +252,7 @@ export default function StitchingOrdersPage() {
           buyer_delivery_date: form.buyerDeliveryDate || null,
           status: form.status || 'Started',
           remarks: form.remarks || null,
+          internal_po: form.internalPO,
         },
         rows: rows.map((r: any, ri: number) => ({
           id: r.id || generateId(),

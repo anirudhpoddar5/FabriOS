@@ -210,6 +210,7 @@ export default function PrintingOrdersPage() {
     if (!form.buyerId) { toast.error('Buyer is required'); return; }
     if (!form.style) { toast.error('Style is required'); return; }
     if (rows.length === 0 || rows.every((r: any) => !r.fabricId)) { toast.error('At least one product row with fabric is required'); return; }
+    if (!form.internalPO?.trim()) { toast.error('Internal PO is required'); return; }
 
     setSaving(true);
     try {
