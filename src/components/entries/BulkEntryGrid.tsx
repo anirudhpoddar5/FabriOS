@@ -20,6 +20,7 @@ export interface GridRow {
   colourwayId: string; orderRowId: string; productLabel: string;
   shiftId: string; resourceId: string; workerTypeId: string;
   personsUsed: number; outputQty: number; valid: boolean; errors: string[]; costPreview: number;
+  rateBasis?: string;
   saveError?: string;
 }
 
@@ -231,13 +232,17 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
     const order = allOrders.find(o => o.id === row.orderId);
     if (order?.status === 'Cancelled') errors.push('Order is cancelled');
     let costPreview = 0;
+    let rateBasis: string | undefined;
     if (currentFactoryId && row.shiftId && row.workerTypeId && row.date) {
       const rate = findRate(data.rateMasters, currentFactoryId, row.shiftId, row.workerTypeId, row.date);
       if (!rate) errors.push('No active rate');
-      else costPreview = rate.rateBasis === 'per_person_per_shift' ? row.personsUsed * rate.rateValue : row.outputQty * rate.rateValue;
+      else {
+        rateBasis = rate.rateBasis;
+        costPreview = rate.rateBasis === 'per_person_per_shift' ? row.personsUsed * rate.rateValue : row.outputQty * rate.rateValue;
+      }
     }
     const cw = getColourwayOptions(row.orderId, row.module).find(c => c.id === row.colourwayId);
-    return { ...row, valid: errors.length === 0, errors, costPreview, orderRowId: cw?.orderRowId || '', productLabel: cw?.productLabel || '' };
+    return { ...row, valid: errors.length === 0, errors, costPreview, rateBasis, orderRowId: cw?.orderRowId || '', productLabel: cw?.productLabel || '' };
   }, [allOrders, currentFactoryId, data.rateMasters, getColourwayOptions]);
 
   const updateRow = (id: string, field: string, value: any) => {
@@ -707,7 +712,12 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
                       </Select>
                     </TableCell>
                     <TableCell className="py-1"><Input className="h-7 text-[11px]" type="number" min={0} value={row.personsUsed} onChange={e => updateRow(row.id, 'personsUsed', parseInt(e.target.value) || 0)} /></TableCell>
-                    <TableCell className="py-1"><Input className="h-7 text-[11px]" type="number" min={0} value={row.outputQty} onChange={e => updateRow(row.id, 'outputQty', parseFloat(e.target.value) || 0)} /></TableCell>
+                    <TableCell className="py-1">
+                      <Input className="h-7 text-[11px]" type="number" min={0} value={row.outputQty} onChange={e => updateRow(row.id, 'outputQty', parseFloat(e.target.value) || 0)} />
+                      {row.rateBasis === 'per_person_per_shift' && (
+                        <div className="text-[9px] text-muted-foreground mt-0.5 leading-none">n/a — per-person rate</div>
+                      )}
+                    </TableCell>
                     <TableCell className="py-1 text-[11px] font-mono">₹{row.costPreview.toFixed(0)}</TableCell>
                     <TableCell className="py-1">
                       {row.saveError ? <span title={row.saveError}><X className="h-3.5 w-3.5 text-destructive" /></span> : row.valid ? <Check className="h-3.5 w-3.5 text-green-600" /> : row.errors.length > 0 && (row.orderId || row.shiftId) ? <span title={row.errors.join(', ')}><X className="h-3.5 w-3.5 text-destructive" /></span> : null}
