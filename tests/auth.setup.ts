@@ -3,8 +3,9 @@ import * as fs from 'fs';
 
 const authFile = 'playwright/.auth/user.json';
 
-const TEST_EMAIL = 'test@fabrios-e2e.com';
-const TEST_PASSWORD = 'TestPass123!';
+const TEST_EMAIL = process.env.FABRIOS_TEST_EMAIL ?? 'steelman@fabrios-demo.com';
+const TEST_PASSWORD = process.env.FABRIOS_TEST_PASSWORD;
+if (!TEST_PASSWORD) throw new Error('Set FABRIOS_TEST_PASSWORD before running auth.setup.ts');
 
 setup('authenticate from scratch', async ({ page }) => {
   fs.mkdirSync('playwright/.auth', { recursive: true });

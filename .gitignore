@@ -14,6 +14,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # Editor directories and files
 .vscode/*
@@ -32,3 +33,4 @@ test-results/
 
 # Test artifacts
 dashboard-preview.png
+.superpowers/
