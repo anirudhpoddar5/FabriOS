@@ -114,7 +114,7 @@ export default function BomPage() {
           avg_consumption: Number(line.avg_consumption) || 0,
           extra_pct: Number(line.extra_pct) || 0,
           rate: Number(line.rate) || 0,
-          total_amount: Number(line.total_amount) || 0,
+          total_amount: Number(line.total_amount) > 0 ? Number(line.total_amount) : null,
           uom: line.uom || 'meters',
           vendor_name: line.vendor_name || null,
           remarks: line.remarks || null,
@@ -183,7 +183,7 @@ export default function BomPage() {
             po_date: new Date().toISOString().slice(0, 10),
             status: 'draft',
             source_type: form.bom_type === 'manual' ? 'manual' : 'bom',
-            currency: 'USD',
+            currency: 'USD', // TODO(Phase 2): use company base currency
             total_amount: poTotal,
             order_id: sourceRef,
             remarks: `From BOM: ${form.title || editingId?.slice(0, 8)}`,
