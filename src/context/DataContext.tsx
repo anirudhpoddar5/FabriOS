@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { AppData } from '@/types';
-import { dbToFrontend, frontendToDb, COMPANY_TABLES, ORDER_HEADER_COLS, ORDER_ROW_COLS } from '@/lib/data-utils';
+import { dbToFrontend, frontendToDb, COMPANY_TABLES } from '@/lib/data-utils';
 import { separateOrderData } from '@/lib/order-data';
 
 // Maps AppData keys to Supabase table names
@@ -199,37 +199,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     });
     delete dbRow.created_at;
     delete dbRow.updated_at;
-
-    // For orders: split into order_headers + order_rows (orderQty, fabricId etc. live in order_rows)
-    if (key === 'printingOrders' || key === 'stitchingOrders') {
-      dbRow.module = key === 'printingOrders' ? 'printing' : 'stitching';
-      dbRow.company_id = companyId;
-
-      const headerRow: Record<string, unknown> = {};
-      const orderRow: Record<string, unknown> = {};
-      Object.entries(dbRow).forEach(([k, v]) => {
-        if (ORDER_HEADER_COLS.includes(k)) headerRow[k] = v;
-        else if (ORDER_ROW_COLS.includes(k)) orderRow[k] = v;
-      });
-
-      const { data: newHeader, error: hErr } = await supabase
-        .from(tableName as any).insert(headerRow as any).select('id').single();
-      if (hErr) return { error: hErr.message };
-
-      if (Object.keys(orderRow).length > 0) {
-        orderRow.id = generateId();
-        orderRow.order_id = newHeader.id;
-        const { error: rErr } = await supabase.from('order_rows').insert(orderRow as any);
-        if (rErr) return { error: rErr.message };
-      }
-
-      setData(prev => ({
-        ...prev,
-        [key]: [...prev[key], { ...frontItem, active: true }] as any,
-      }));
-      await refreshData();
-      return { error: null };
-    }
 
     // For colourways, map orderId back to order_row_id
     if (key === 'printingColourways' || key === 'stitchingColourways') {
