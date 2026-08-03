@@ -114,7 +114,7 @@ export default function BomPage() {
           avg_consumption: Number(line.avg_consumption) || 0,
           extra_pct: Number(line.extra_pct) || 0,
           rate: Number(line.rate) || 0,
-          total_amount: Number(line.total_amount) > 0 ? Number(line.total_amount) : null,
+          total_amount: Number(line.total_amount) || 0,
           uom: line.uom || 'meters',
           vendor_name: line.vendor_name || null,
           remarks: line.remarks || null,
