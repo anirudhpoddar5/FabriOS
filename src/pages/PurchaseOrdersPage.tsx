@@ -81,7 +81,20 @@ export default function PurchaseOrdersPage() {
 
   const savePO = useMutation({
     mutationFn: async () => {
-      const payload: any = {
+      const lineRows = lines
+        .filter((l: any) => l.item_name && l.qty_ordered > 0)
+        .map((l: any) => ({
+          id: l.id || crypto.randomUUID(),
+          item_name: l.item_name,
+          item_id: l.item_id || null,
+          uom: l.uom || 'pcs',
+          qty_ordered: Number(l.qty_ordered) || 0,
+          rate: Number(l.rate) || 0,
+          amount: (Number(l.qty_ordered) || 0) * (Number(l.rate) || 0),
+          remarks: l.remarks || null,
+        }));
+
+      const payload = {
         header: {
           po_number: form.po_number,
           vendor_id: form.vendor_id,
@@ -89,23 +102,11 @@ export default function PurchaseOrdersPage() {
           status: form.status || 'draft',
           source_type: form.source_type || 'manual',
           currency: form.currency || 'USD',
-          total_amount: lines.reduce((s, l) => s + (l.qty_ordered || 0) * (l.rate || 0), 0),
+          total_amount: lineRows.reduce((s, l) => s + (l.amount || 0), 0),
           order_id: form.order_id || null,
           remarks: form.remarks || null,
         },
-        lines: lines
-          .filter((l: any) => l.item_name && l.qty_ordered > 0)
-          .map((l: any, idx: number) => ({
-            id: l.id || crypto.randomUUID(),
-            item_name: l.item_name,
-            item_id: l.item_id || null,
-            uom: l.uom || 'pcs',
-            qty_ordered: Number(l.qty_ordered) || 0,
-            rate: Number(l.rate) || 0,
-            amount: (Number(l.qty_ordered) || 0) * (Number(l.rate) || 0),
-            remarks: l.remarks || null,
-            sort_order: idx,
-          })),
+        lines: lineRows,
       };
 
       const { data, error } = await supabase.rpc('save_po_with_lines', { payload });
