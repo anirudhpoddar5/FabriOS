@@ -86,7 +86,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const [
-        factories, buyers, fabrics,
+        companies, factories, buyers, fabrics,
         printingProducts, stitchingProducts,
         workerTypes, rateMasters,
         orderHeaders, orderRows, orderColourways,
@@ -94,6 +94,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         quotations, quotationLines,
         invoices, subcontractJobs,
       ] = await Promise.all([
+        supabase.from('companies').select('*').eq('id', companyId),
         supabase.from('factories').select('*').eq('company_id', companyId),
         supabase.from('buyers').select('*').eq('company_id', companyId),
         supabase.from('fabrics').select('*').eq('company_id', companyId),
@@ -138,7 +139,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
       setData({
         users: (profiles.data || []).map(dbToFrontend) as any,
-        companies: [], // not needed at this level
+        companies: (companies.data || []).map(dbToFrontend) as any,
         factories: (factories.data || []).map(dbToFrontend) as any,
         shifts: (shifts.data || []).map(dbToFrontend) as any,
         buyers: (buyers.data || []).map(dbToFrontend) as any,
