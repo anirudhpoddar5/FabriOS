@@ -483,12 +483,12 @@ export default function GRNPage() {
                             className="h-7 text-xs w-[80px] text-right" />
                         </TableCell>
                         <TableCell className="py-1">
-                          <Select value={l.rejection_reason || ''} onValueChange={v => updateLine(i, 'rejection_reason', v)}>
+                          <Select value={l.rejection_reason || '__none__'} onValueChange={v => updateLine(i, 'rejection_reason', v === '__none__' ? '' : v)}>
                             <SelectTrigger className={`h-7 text-xs w-[120px] ${l.qty_rejected > 0 && !l.rejection_reason ? 'border-destructive' : ''}`}>
                               <SelectValue placeholder="—" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">None</SelectItem>
+                              <SelectItem value="__none__">None</SelectItem>
                               <SelectItem value="damaged">Damaged</SelectItem>
                               <SelectItem value="wrong_spec">Wrong Spec</SelectItem>
                               <SelectItem value="quality_issue">Quality Issue</SelectItem>
