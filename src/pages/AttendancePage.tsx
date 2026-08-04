@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Attendance } from '@/types';
 
+const EMPTY_ATTENDANCE: Attendance[] = [];
+
 interface AttendanceRow {
   workerId: string;
   employeeCode: string;
@@ -69,9 +71,13 @@ export default function AttendancePage() {
   const showP = currentModule === 'printing' || currentModule === 'both';
   const showS = currentModule === 'stitching' || currentModule === 'both';
 
-  const factories = appData.factories.filter((f: any) =>
+  // Memoized: an unstable reference here (recreated every render) cascades into
+  // factoryWorkers below (which depends on it) and retriggers the loadRows()
+  // effect on every render, resetting in-progress row edits before they can
+  // be typed (see loadRows effect further down).
+  const factories = useMemo(() => appData.factories.filter((f: any) =>
     f.active !== false && (f.type === currentModule || f.type === 'mixed' || !currentModule)
-  );
+  ), [appData.factories, currentModule]);
 
   // Shifts for the selected factory
   const factoryWorkers = useMemo(() => {
@@ -92,7 +98,7 @@ export default function AttendancePage() {
     return appData.shifts.filter((s: any) => s.active !== false && s.factoryId === factoryId);
   }, [appData.shifts, currentFactoryId, factories]);
 
-  const { data: existingAttendance = [] } = useQuery({
+  const { data: existingAttendanceRaw } = useQuery({
     queryKey: ['attendance', companyId, date, currentFactoryId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -120,6 +126,11 @@ export default function AttendancePage() {
     },
     enabled: !!companyId,
   });
+  // `data` is undefined until the query resolves; a `= []` default on the
+  // destructure above would create a brand-new array every render, which
+  // (as a dependency of the loadRows effect below) causes an infinite
+  // render loop that resets in-progress row edits on every keystroke.
+  const existingAttendance = useMemo(() => existingAttendanceRaw ?? EMPTY_ATTENDANCE, [existingAttendanceRaw]);
 
   const loadRows = () => {
     const existing = existingAttendance as Attendance[];
