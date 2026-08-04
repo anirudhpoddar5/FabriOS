@@ -15,8 +15,9 @@ export default function CompaniesPage() {
         { key: 'name', header: 'Company Name' },
         { key: 'legalName', header: 'Legal Name' },
         { key: 'address', header: 'Address' },
+        { key: 'baseCurrency', header: 'Base Currency' },
       ]}
-      defaultValues={() => ({ name: '', legalName: '', address: '', active: true, workingDays: [1, 2, 3, 4, 5, 6] })}
+      defaultValues={() => ({ name: '', legalName: '', address: '', baseCurrency: 'INR', active: true, workingDays: [1, 2, 3, 4, 5, 6] })}
       validate={d => !d.name ? 'Company name is required' : null}
       renderForm={(_item, onChange, formData) => {
         const workingDays: number[] = formData.workingDays || [];
@@ -31,6 +32,9 @@ export default function CompaniesPage() {
             <div className="space-y-1"><Label className="text-xs">Company Name *</Label><Input value={formData.name || ''} onChange={e => onChange('name', e.target.value)} /></div>
             <div className="space-y-1"><Label className="text-xs">Legal Name</Label><Input value={formData.legalName || ''} onChange={e => onChange('legalName', e.target.value)} /></div>
             <div className="space-y-1"><Label className="text-xs">Address</Label><Textarea value={formData.address || ''} onChange={e => onChange('address', e.target.value)} rows={2} /></div>
+            <div className="space-y-1"><Label className="text-xs">Base Currency (for costs)</Label>
+              <Input value={formData.baseCurrency || 'INR'} onChange={e => onChange('baseCurrency', e.target.value.toUpperCase())} placeholder="INR" maxLength={3} />
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">Weekly Working Days</Label>
               <div className="flex gap-1 flex-wrap">

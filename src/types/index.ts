@@ -10,6 +10,7 @@ export interface Company {
   name: string;
   legalName?: string;
   address?: string;
+  baseCurrency?: string;
   active: boolean;
 }
 
