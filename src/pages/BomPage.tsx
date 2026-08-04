@@ -35,6 +35,7 @@ export default function BomPage() {
   const { profile } = useAuth();
   const { data: appData } = useData();
   const companyId = profile?.company_id;
+  const companyBaseCurrency = appData.companies?.[0]?.baseCurrency || 'INR';
   const qc = useQueryClient();
   const [tab, setTab] = useState('order-bom');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -183,7 +184,7 @@ export default function BomPage() {
             po_date: new Date().toISOString().slice(0, 10),
             status: 'draft',
             source_type: form.bom_type === 'manual' ? 'manual' : 'bom',
-            currency: 'USD', // TODO(Phase 2): use company base currency
+            currency: companyBaseCurrency,
             total_amount: poTotal,
             order_id: sourceRef,
             remarks: `From BOM: ${form.title || editingId?.slice(0, 8)}`,
@@ -522,7 +523,7 @@ export default function BomPage() {
                           <SelectTrigger className="h-8 text-xs w-[140px]"><SelectValue placeholder="Vendor" /></SelectTrigger>
                           <SelectContent>{vendors.map((v: any) => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}</SelectContent>
                         </Select>
-                        <span className="text-xs font-medium">₹{(l.total_amount || 0).toFixed(2)}</span>
+                        <span className="text-xs font-medium">{companyBaseCurrency} {(l.total_amount || 0).toFixed(2)}</span>
                       </div>
                     </CardContent></Card>
                   ))}
@@ -532,7 +533,7 @@ export default function BomPage() {
                   {selectedLineIdxs.size > 0 && (
                     <span className="text-xs text-muted-foreground">{selectedLineIdxs.size} lines selected</span>
                   )}
-                  <span className="text-sm font-medium ml-auto">Total: ₹{lines.reduce((s, l) => s + (Number(l.total_amount) || 0), 0).toFixed(2)}</span>
+                  <span className="text-sm font-medium ml-auto">Total: {companyBaseCurrency} {lines.reduce((s, l) => s + (Number(l.total_amount) || 0), 0).toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -562,12 +563,12 @@ export default function BomPage() {
                   {g.lines.map((l, j) => (
                     <div key={j} className="flex justify-between text-xs text-muted-foreground">
                       <span>{l.item_name} ({l.category})</span>
-                      <span>₹{(l.total_amount || 0).toFixed(2)}</span>
+                      <span>{companyBaseCurrency} {(l.total_amount || 0).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
                 <div className="text-right text-sm font-medium mt-2 border-t pt-1">
-                  ₹{g.lines.reduce((s: number, l: any) => s + (Number(l.total_amount) || 0), 0).toFixed(2)}
+                  {companyBaseCurrency} {g.lines.reduce((s: number, l: any) => s + (Number(l.total_amount) || 0), 0).toFixed(2)}
                 </div>
               </CardContent></Card>
             ))}

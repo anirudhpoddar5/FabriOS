@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { useData } from '@/context/DataContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,7 +30,9 @@ const STATUS_COLORS: Record<string, string> = {
 export default function PurchaseOrdersPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { data: appData } = useData();
   const companyId = profile?.company_id;
+  const companyBaseCurrency = appData.companies?.[0]?.baseCurrency || 'INR';
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [vendorFilter, setVendorFilter] = useState('all');
@@ -101,7 +104,7 @@ export default function PurchaseOrdersPage() {
           po_date: form.po_date,
           status: form.status || 'draft',
           source_type: form.source_type || 'manual',
-          currency: form.currency || 'USD',
+          currency: form.currency || companyBaseCurrency,
           total_amount: lineRows.reduce((s, l) => s + (l.amount || 0), 0),
           order_id: form.order_id || null,
           remarks: form.remarks || null,
@@ -117,7 +120,7 @@ export default function PurchaseOrdersPage() {
   });
 
   const handleAdd = () => {
-    setForm({ po_number: `PO-${Date.now().toString(36).toUpperCase()}`, vendor_id: '', po_date: new Date().toISOString().slice(0, 10), source_type: 'manual', currency: 'USD', remarks: '' });
+    setForm({ po_number: `PO-${Date.now().toString(36).toUpperCase()}`, vendor_id: '', po_date: new Date().toISOString().slice(0, 10), source_type: 'manual', currency: companyBaseCurrency, remarks: '' });
     setLines([{ id: crypto.randomUUID(), item_id: '', item_name: '', uom: 'meters', qty_ordered: 0, rate: 0 }]);
     setDialogOpen(true);
   };
@@ -199,7 +202,7 @@ export default function PurchaseOrdersPage() {
     printDetailPage(`Purchase Orders (${filtered.length})`, [
       { label: 'Filter', value: vendorFilter !== 'all' ? `Vendor selected` : 'All vendors' },
       { label: 'Total POs', value: String(filtered.length) },
-      { label: 'Total Amount', value: `$${filtered.reduce((s, p: any) => s + (p.total_amount || 0), 0).toFixed(2)}` },
+      { label: 'Total Amount', value: `${companyBaseCurrency} ${filtered.reduce((s, p: any) => s + (p.total_amount || 0), 0).toFixed(2)}` },
     ], [
       {
         title: 'Purchase Orders',
