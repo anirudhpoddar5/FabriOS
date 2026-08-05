@@ -68,6 +68,12 @@ export default function ReportsPage() {
       const { data } = await supabase.from('purchase_orders').select('*, vendors(name)').eq('company_id', companyId); return data || [];
     }, enabled: !!companyId,
   });
+  const { data: poLines = [] } = useQuery({
+    queryKey: ['polines_rpt', companyId], queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('purchase_order_lines').select('*, purchase_orders(po_number, vendor_id, po_date, status, vendors(name))').limit(1000); return data || [];
+    }, enabled: !!companyId,
+  });
   const { data: invItems = [] } = useQuery({
     queryKey: ['inv_rpt', companyId], queryFn: async () => {
       if (!companyId) return [];
@@ -228,6 +234,7 @@ export default function ReportsPage() {
     { id: 'dispatch', label: 'Dispatch' },
     { id: 'po-status', label: 'PO Status' },
     { id: 'pending-purchase', label: 'Pending Purchase' },
+    { id: 'grn-pending', label: 'GRN Pending' },
     { id: 'stock', label: 'Stock On Hand' },
     { id: 'inward-outward', label: 'Inward/Outward' },
     { id: 'profit-loss', label: 'Profit/Loss' },
@@ -293,6 +300,22 @@ export default function ReportsPage() {
     count: pendingPurchase.length,
     amount: pendingPurchase.reduce((s: number, p: any) => s + (p.total_amount || 0), 0),
   }), [pendingPurchase]);
+
+  const grnPendingData = useMemo(() => {
+    return poLines.map((pl: any) => {
+      const po = (pl as any).purchase_orders;
+      const vendorName = po?.vendors?.name || '-';
+      const ordered = Number(pl.qty_ordered) || 0;
+      const received = Number(pl.qty_received) || 0;
+      const pending = ordered - received;
+      return { poNumber: po?.po_number || '-', vendor: vendorName, item: pl.item_name, uom: pl.uom, ordered, received, pending, poDate: po?.po_date || '-', poStatus: po?.status || '-' };
+    }).filter((r: any) => r.pending > 0);
+  }, [poLines]);
+  const grnPendingSummary = useMemo(() => ({
+    lines: grnPendingData.length,
+    pendingQty: grnPendingData.reduce((s: number, r: any) => s + r.pending, 0),
+    pos: new Set(grnPendingData.map((r: any) => r.poNumber)).size,
+  }), [grnPendingData]);
 
   const stockSummary = useMemo(() => {
     const totalItems = invItems.length;
@@ -423,6 +446,17 @@ export default function ReportsPage() {
           ]} />
           <ReportTable headers={['PO#','Vendor','Date','Status','Amount','Invoice','Payment']}
             rows={pendingPurchase.map((p: any) => [p.po_number, (p as any).vendors?.name || '-', p.po_date, <Badge key="s" variant="outline" className="text-[9px]">{p.status}</Badge>, `₹${p.total_amount || 0}`, p.invoice_number || '-', <Badge key="p" variant="outline" className="text-[9px]">{p.payment_status || 'pending'}</Badge>])} emptyMsg="No pending purchases" />
+        </TabsContent>
+
+        <TabsContent value="grn-pending">
+          <ExportBtns csvHeaders={['PO#','Vendor','Item','UOM','Ordered','Received','Pending','PO Date','Status']} csvRows={grnPendingData.map((r: any) => [r.poNumber,r.vendor,r.item,r.uom,r.ordered,r.received,r.pending,r.poDate,r.poStatus])} csvFile="grn_pending.csv" pdfTitle="GRN Pending Report" />
+          <SummaryCards cards={[
+            { label: 'Pending Lines', value: String(grnPendingSummary.lines), icon: ClipboardList, color: 'bg-amber-600' },
+            { label: 'Pending Qty', value: grnPendingSummary.pendingQty.toLocaleString(), icon: Package, color: 'bg-orange-600' },
+            { label: 'POs Affected', value: String(grnPendingSummary.pos), icon: ShoppingCart, color: 'bg-blue-600' },
+          ]} />
+          <ReportTable headers={['PO#','Vendor','Item','UOM','Ordered','Received','Pending','PO Date','Status']}
+            rows={grnPendingData.map((r: any) => [r.poNumber, r.vendor, r.item, r.uom, String(r.ordered), String(r.received), <span key="p" className="text-destructive font-medium">{r.pending}</span>, r.poDate, <Badge key="s" variant="outline" className="text-[9px]">{r.poStatus}</Badge>])} emptyMsg="No pending GRN items" />
         </TabsContent>
 
         <TabsContent value="stock">
