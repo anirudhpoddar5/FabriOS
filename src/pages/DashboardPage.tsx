@@ -284,7 +284,7 @@ function DashboardContent() {
         </Select>
         {selectedFactory && (
           <span className="text-[10px] text-muted-foreground ml-auto">
-            Showing orders with production at <strong>{selectedFactory.name}</strong>
+            Showing orders with production at <strong>{selectedFactory.name}</strong> — Active Orders and Overdue/Due below are company-wide (orders aren't linked to a factory until their first entry is logged)
           </span>
         )}
       </div>
