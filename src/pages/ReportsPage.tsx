@@ -227,6 +227,7 @@ export default function ReportsPage() {
     { id: 'delayed', label: 'Delayed' },
     { id: 'dispatch', label: 'Dispatch' },
     { id: 'po-status', label: 'PO Status' },
+    { id: 'pending-purchase', label: 'Pending Purchase' },
     { id: 'stock', label: 'Stock On Hand' },
     { id: 'inward-outward', label: 'Inward/Outward' },
     { id: 'profit-loss', label: 'Profit/Loss' },
@@ -286,6 +287,12 @@ export default function ReportsPage() {
     const pending = pos.filter((p: any) => p.status === 'draft' || p.status === 'sent' || p.status === 'partial').length;
     return { count: totalPOs, amount: totalAmt, pending };
   }, [pos]);
+
+  const pendingPurchase = useMemo(() => pos.filter((p: any) => p.status !== 'closed' && p.status !== 'cancelled' && p.status !== 'received'), [pos]);
+  const pendingPurchaseSummary = useMemo(() => ({
+    count: pendingPurchase.length,
+    amount: pendingPurchase.reduce((s: number, p: any) => s + (p.total_amount || 0), 0),
+  }), [pendingPurchase]);
 
   const stockSummary = useMemo(() => {
     const totalItems = invItems.length;
@@ -406,6 +413,16 @@ export default function ReportsPage() {
           ]} />
           <ReportTable headers={['PO#','Vendor','Date','Status','Amount','Invoice#','Payment']}
             rows={pos.map((p: any) => [p.po_number, (p as any).vendors?.name || '-', p.po_date, <Badge key="s" variant="outline" className="text-[9px]">{p.status}</Badge>, `₹${p.total_amount || 0}`, p.invoice_number || '-', <Badge key="p" variant="outline" className="text-[9px]">{p.payment_status || 'pending'}</Badge>])} />
+        </TabsContent>
+
+        <TabsContent value="pending-purchase">
+          <ExportBtns csvHeaders={['PO#','Vendor','Date','Status','Amount','Invoice#','Payment']} csvRows={pendingPurchase.map((p: any) => [p.po_number,(p as any).vendors?.name||'',p.po_date,p.status,p.total_amount||0,p.invoice_number||'',p.payment_status||''])} csvFile="pending_purchase.csv" pdfTitle="Pending Purchase" />
+          <SummaryCards cards={[
+            { label: 'Pending POs', value: String(pendingPurchaseSummary.count), icon: AlertTriangle, color: 'bg-amber-600' },
+            { label: 'Pending Amount', value: `₹${pendingPurchaseSummary.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'bg-orange-600' },
+          ]} />
+          <ReportTable headers={['PO#','Vendor','Date','Status','Amount','Invoice','Payment']}
+            rows={pendingPurchase.map((p: any) => [p.po_number, (p as any).vendors?.name || '-', p.po_date, <Badge key="s" variant="outline" className="text-[9px]">{p.status}</Badge>, `₹${p.total_amount || 0}`, p.invoice_number || '-', <Badge key="p" variant="outline" className="text-[9px]">{p.payment_status || 'pending'}</Badge>])} emptyMsg="No pending purchases" />
         </TabsContent>
 
         <TabsContent value="stock">
