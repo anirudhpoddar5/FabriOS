@@ -119,6 +119,7 @@ export default function SingleEntryForm({ defaultModule }: Props) {
 
   // Derive orderRowId from selected colourway
   const selectedColourway = colourwayOptions.find(c => c.id === form.colourwayId);
+  const selectedRow = orderRows.find(r => r.id === (form.orderRowId || selectedColourway?.orderRowId));
 
   const shifts = data.shifts.filter(s => s.active && (!activeFactoryId || s.factoryId === activeFactoryId));
   const workerTypes = data.workerTypes.filter(w => w.active && (w.module === form.module || w.module === 'both'));
@@ -246,6 +247,9 @@ export default function SingleEntryForm({ defaultModule }: Props) {
           <div className="text-[10px] text-muted-foreground flex items-center gap-2">
             <Badge variant="outline" className="text-[10px]">Product: {selectedColourway.productCode} — {selectedColourway.productName}</Badge>
             <Badge variant="outline" className="text-[10px]">Colour: {selectedColourway.colourName}</Badge>
+            {form.module === 'printing' && !!selectedRow?.no_of_colours && (
+              <Badge variant="outline" className="text-[10px]">{selectedRow.no_of_colours} colours</Badge>
+            )}
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

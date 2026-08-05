@@ -573,10 +573,11 @@ export default function PrintingOrdersPage() {
                           <div className="space-y-1"><Label className="text-[10px]">Width</Label><Input className="h-8 text-xs" value={row.fabricWidth || ''} onChange={e => updateRow(row.id, 'fabricWidth', e.target.value)} /></div>
                           <div className="space-y-1"><Label className="text-[10px]">UOM</Label><Input className="h-8 text-xs" value={row.uom || ''} onChange={e => updateRow(row.id, 'uom', e.target.value)} /></div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
                           <div className="space-y-1"><Label className="text-[10px]">Order Qty</Label><Input className="h-8 text-xs" type="number" value={row.orderQty || ''} onChange={e => updateRow(row.id, 'orderQty', parseFloat(e.target.value) || 0)} /></div>
                           <div className="space-y-1"><Label className="text-[10px]">Chart Qty</Label><Input className="h-8 text-xs" type="number" value={row.chartQty || ''} onChange={e => updateRow(row.id, 'chartQty', parseFloat(e.target.value) || 0)} /></div>
                           <div className="space-y-1"><Label className="text-[10px]">Rate/Item</Label><Input className="h-8 text-xs" type="number" step="0.01" value={row.ratePerItem || ''} onChange={e => updateRow(row.id, 'ratePerItem', parseFloat(e.target.value) || 0)} /></div>
+                          <div className="space-y-1"><Label className="text-[10px]">No. of Colours</Label><Input className="h-8 text-xs" type="number" min={0} max={12} value={row.noOfColours || ''} onChange={e => updateRow(row.id, 'noOfColours', parseInt(e.target.value, 10) || 0)} /></div>
                           <div className="space-y-1 flex items-end pb-1">
                             {row.orderQty > 0 && row.ratePerItem > 0 && (
                               <span className="text-xs font-medium text-muted-foreground">

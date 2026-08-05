@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Trash2, Check, X, ClipboardPaste, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -536,6 +537,11 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
                   )}
                 </SelectContent>
               </Select>
+              {quickForm.module === 'printing' && !!orderRowsCache[quickForm.orderId]?.find((r: any) => r.id === quickSelectedColourway?.orderRowId)?.no_of_colours && (
+                <Badge variant="outline" className="text-[10px]">
+                  {orderRowsCache[quickForm.orderId].find((r: any) => r.id === quickSelectedColourway?.orderRowId).no_of_colours} colours
+                </Badge>
+              )}
             </div>
           </div>
 
