@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -33,6 +33,10 @@ export function MasterCRUD<K extends keyof AppData>({ title, dataKey, columns, r
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+  // ponytail: ref backs the guard so two clicks fired in the same tick (before React
+  // re-renders the disabled button) can't both slip past a state-only check.
+  const savingRef = useRef(false);
 
   const filtered = useMemo(() => {
     if (!search) return items;
@@ -59,22 +63,39 @@ export function MasterCRUD<K extends keyof AppData>({ title, dataKey, columns, r
   };
 
   const handleSave = async () => {
+    if (savingRef.current) return;
     if (validate) {
       const err = validate(formData);
       if (err) { toast.error(err); return; }
     }
-    let result: { error: string | null };
-    if (editingId) {
-      result = await updateItem(dataKey, editingId, formData as any);
-    } else {
-      result = await addItem(dataKey, { ...formData, id: generateId() } as any);
+    // ponytail: cheap dupe guard — only checks code/name against already-loaded rows,
+    // not a real unique constraint. Upgrade to a DB constraint if dupes still slip through.
+    if (!editingId) {
+      const key = formData.code ? 'code' : formData.name ? 'name' : null;
+      if (key) {
+        const dupe = items.some((item: any) => String(item[key]).trim().toLowerCase() === String(formData[key]).trim().toLowerCase());
+        if (dupe) { toast.error(`A ${title.toLowerCase()} with this ${key} already exists`); return; }
+      }
     }
-    if (result.error) {
-      toast.error(`Failed to save: ${result.error}`);
-      return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      let result: { error: string | null };
+      if (editingId) {
+        result = await updateItem(dataKey, editingId, formData as any);
+      } else {
+        result = await addItem(dataKey, { ...formData, id: generateId() } as any);
+      }
+      if (result.error) {
+        toast.error(`Failed to save: ${result.error}`);
+        return;
+      }
+      toast.success(editingId ? `${title} updated` : `${title} added`);
+      setDialogOpen(false);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-    toast.success(editingId ? `${title} updated` : `${title} added`);
-    setDialogOpen(false);
   };
 
   const handleToggleActive = async (item: any) => {
@@ -141,8 +162,8 @@ export function MasterCRUD<K extends keyof AppData>({ title, dataKey, columns, r
             {renderForm(editingId ? items.find((i: any) => i.id === editingId) : null, handleChange, formData)}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave}>Save</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
