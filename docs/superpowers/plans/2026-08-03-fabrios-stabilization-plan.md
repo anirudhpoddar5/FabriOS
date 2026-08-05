@@ -337,24 +337,25 @@ git commit -m "fix(reports): stop subtracting cost and revenue in different curr
 
 ## Phase 3 — Missing "number of colours" field
 
-**Files:** `src/pages/PrintingOrdersPage.tsx`, `src/pages/StitchingOrdersPage.tsx`
+**Files:** `src/pages/PrintingOrdersPage.tsx`, `src/components/entries/SingleEntryForm.tsx`, possibly `src/components/entries/BulkEntryGrid.tsx`
 
-The data field (`noOfColours` / `no_of_colours`) already exists end-to-end (state, payload, DB column per `order_rows.no_of_colours`) — it's simply never rendered as an input, so it's always saved as `0`.
+**Corrected scope (owner clarified after the original draft of this phase):** "No. of Colours" is NOT about colourway/SKU variants (Red/Blue/Green as separate order lines) — it's a print-production attribute: how many ink colours the screen-print design itself uses (a print can be 2-colour up to 7-8 colour). It directly affects output, costing, and quality, and the owner wants it tracked. **Manual entry, not auto-derived from anything.** **Printing only — does not apply to stitching orders; do not add this to `StitchingOrdersPage.tsx`.**
 
-- [ ] **Step 1:** In `PrintingOrdersPage.tsx`, in the row form's qty/rate grid (currently `grid-cols-4`: Order Qty, Chart Qty, Rate/Item, Value — around line 576), change to `grid-cols-5` and add:
+The data field (`noOfColours` / `no_of_colours`) already exists end-to-end (state, payload, DB column per `order_rows.no_of_colours`) — it's simply never rendered as an input on the order form, so it's always saved as `0`.
+
+- [ ] **Step 1:** In `PrintingOrdersPage.tsx`, in the row form's qty/rate grid (currently `grid-cols-4`: Order Qty, Chart Qty, Rate/Item, Value — around line 576), change to `grid-cols-5` and add a manual numeric input:
 
 ```tsx
-<div className="space-y-1"><Label className="text-[10px]">No. of Colours</Label><Input className="h-8 text-xs" type="number" min={0} value={row.noOfColours || ''} onChange={e => updateRow(row.id, 'noOfColours', parseInt(e.target.value, 10) || 0)} /></div>
+<div className="space-y-1"><Label className="text-[10px]">No. of Colours</Label><Input className="h-8 text-xs" type="number" min={0} max={12} value={row.noOfColours || ''} onChange={e => updateRow(row.id, 'noOfColours', parseInt(e.target.value, 10) || 0)} /></div>
 ```
 
-- [ ] **Step 2:** Repeat the same change in `StitchingOrdersPage.tsx` at its equivalent row-form location (check `grep -n "Rate/Item\|ratePerItem" src/pages/StitchingOrdersPage.tsx` for the exact spot).
-- [ ] **Step 3:** Decide (ask the owner if unclear) whether "No. of Colours" should auto-derive from the count of colourway rows already entered below, rather than being a separately-typed number that can disagree with the actual colourway list. If auto-derive is wanted, replace the `Input` with a read-only computed value: `{(row.colours || []).filter((c:any) => c.colourName).length}`.
-- [ ] **Step 4:** Manually verify: create/edit an order, set a colour count, save, reopen, confirm it persisted.
-- [ ] **Step 5: Commit**
+- [ ] **Step 2:** Since the owner said this "should be analyzed and tracked" and specifically mentioned it matters during **printing entries** (not just order creation): surface it as read-only context in `SingleEntryForm.tsx` once an order/row is selected — e.g. a small badge/line near the Colour field showing "N colours" (read from the selected row's `noOfColours`, sourced via `orderRows`/the row lookup already used for the Colour select in the Phase 1.4 fix). This is informational only — do NOT invent a new costing formula that multiplies rate by colour count; that's a real business-logic decision beyond "expose an existing field," and should be a separate, explicitly-requested follow-up if the owner wants rate/cost to actually depend on colour count.
+- [ ] **Step 3:** Manually verify: create/edit a printing order, set a colour count (e.g. 4), save, reopen, confirm it persisted. Then open Single Entry for that order and confirm the colour count is visible as context.
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/pages/PrintingOrdersPage.tsx src/pages/StitchingOrdersPage.tsx
-git commit -m "fix(orders): expose No. of Colours input on order rows (field existed, was never rendered)"
+git add src/pages/PrintingOrdersPage.tsx src/components/entries/SingleEntryForm.tsx
+git commit -m "fix(orders): expose No. of Colours input on printing order rows, surface as context in entries"
 ```
 
 ---
