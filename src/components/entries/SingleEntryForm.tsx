@@ -43,6 +43,7 @@ export default function SingleEntryForm({ defaultModule }: Props) {
     module: (defaultModule || 'printing') as 'printing' | 'stitching',
     factoryId: currentFactoryId || '',
     orderId: '',
+    orderRowId: '',
     colourwayId: '',
     shiftId: '',
     resourceId: '',
@@ -70,7 +71,7 @@ export default function SingleEntryForm({ defaultModule }: Props) {
 
   useEffect(() => {
     if (defaultModule) {
-      setForm(prev => ({ ...prev, module: defaultModule, orderId: '', colourwayId: '', resourceId: '', workerTypeId: '' }));
+      setForm(prev => ({ ...prev, module: defaultModule, orderId: '', orderRowId: '', colourwayId: '', resourceId: '', workerTypeId: '' }));
     }
   }, [defaultModule]);
 
@@ -167,7 +168,7 @@ export default function SingleEntryForm({ defaultModule }: Props) {
     toast.success(result.data?.consumptionStatus === 'consumed'
       ? 'Output saved. Material stock updated.'
       : 'Output saved. No BOM material was deducted.');
-    setForm(prev => ({ ...prev, orderId: '', colourwayId: '', personsUsed: 0, outputQty: 0, notes: '' }));
+    setForm(prev => ({ ...prev, orderId: '', orderRowId: '', colourwayId: '', personsUsed: 0, outputQty: 0, notes: '' }));
     setOrderRows([]);
   };
 
@@ -179,7 +180,7 @@ export default function SingleEntryForm({ defaultModule }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1"><Label className="text-xs">Date *</Label><Input type="date" value={form.date} onChange={e => set('date', e.target.value)} /></div>
           <div className="space-y-1"><Label className="text-xs">Module *</Label>
-            <Select value={form.module} onValueChange={v => { set('module', v); set('orderId', ''); set('colourwayId', ''); set('resourceId', ''); set('workerTypeId', ''); setOrderRows([]); }}>
+            <Select value={form.module} onValueChange={v => { set('module', v); set('orderId', ''); set('orderRowId', ''); set('colourwayId', ''); set('resourceId', ''); set('workerTypeId', ''); setOrderRows([]); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="printing">Printing</SelectItem>
@@ -196,14 +197,14 @@ export default function SingleEntryForm({ defaultModule }: Props) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1"><Label className="text-xs">Order *</Label>
-            <Select value={form.orderId} onValueChange={v => { set('orderId', v); set('colourwayId', ''); }}>
+            <Select value={form.orderId} onValueChange={v => { set('orderId', v); set('orderRowId', ''); set('colourwayId', ''); }}>
               <SelectTrigger><SelectValue placeholder="Select order" /></SelectTrigger>
               <SelectContent>{orders.map((o: any) => <SelectItem key={o.id} value={o.id}>{o.internalPO}{o.style ? ` - ${o.style}` : ''}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           {orderRows.length > 1 && (
             <div className="space-y-1"><Label className="text-xs">Product Row *</Label>
-              <Select value={selectedColourway?.orderRowId || ''} onValueChange={v => set('colourwayId', '')} disabled={!form.orderId}>
+              <Select value={form.orderRowId} onValueChange={v => { set('orderRowId', v); set('colourwayId', ''); }} disabled={!form.orderId}>
                 <SelectTrigger><SelectValue placeholder={form.orderId ? 'Select product' : 'Select order first'} /></SelectTrigger>
                 <SelectContent>
                   {orderRows.map(row => (
@@ -217,10 +218,10 @@ export default function SingleEntryForm({ defaultModule }: Props) {
           )}
           <div className="space-y-1"><Label className="text-xs">Colour *</Label>
             <Select value={form.colourwayId} onValueChange={v => set('colourwayId', v)}
-              disabled={!form.orderId || (orderRows.length > 1 && !selectedColourway?.orderRowId)}>
+              disabled={!form.orderId || (orderRows.length > 1 && !form.orderRowId)}>
               <SelectTrigger><SelectValue placeholder={
                 !form.orderId ? 'Select order first'
-                : orderRows.length > 1 && !selectedColourway?.orderRowId ? 'Select product first'
+                : orderRows.length > 1 && !form.orderRowId ? 'Select product first'
                 : 'Select colour'
               } /></SelectTrigger>
               <SelectContent>
@@ -228,7 +229,7 @@ export default function SingleEntryForm({ defaultModule }: Props) {
                   <SelectItem value="__loading__" disabled>Loading colours...</SelectItem>
                 )}
                 {colourwayOptions
-                  .filter(c => !selectedColourway?.orderRowId || c.orderRowId === selectedColourway.orderRowId)
+                  .filter(c => !form.orderRowId || c.orderRowId === form.orderRowId)
                   .map(cw => (
                     <SelectItem key={cw.id} value={cw.id}>
                       {cw.colourName}
