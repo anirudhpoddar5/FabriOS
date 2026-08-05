@@ -562,7 +562,7 @@ function DashboardContent() {
                               </div>
                               <div className="flex items-center gap-3 text-[10px] text-muted-foreground mb-1.5">
                                 <span>{rowCount} {rowCount === 1 ? 'item' : 'items'}</span>
-                                {colourCount > 0 && <span>{colourCount} {colourCount === 1 ? 'colour' : 'colours'}</span>}
+                                {colourCount > 0 && <span>{colourCount} {colourCount === 1 ? 'colourway' : 'colourways'}</span>}
                                 {o.buyerPO && <span className="truncate">PO: {o.buyerPO}</span>}
                               </div>
                               <div className="flex items-center gap-2">

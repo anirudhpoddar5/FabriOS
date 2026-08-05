@@ -385,6 +385,7 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
     : data.stitchingOrders.filter(o => o.status !== 'Cancelled');
   const quickColourways = getColourwayOptions(quickForm.orderId, quickForm.module);
   const quickSelectedColourway = quickColourways.find(c => c.id === quickForm.colourwayId);
+  const quickSelectedRow = orderRowsCache[quickForm.orderId]?.find((r: any) => r.id === quickSelectedColourway?.orderRowId);
   const quickShifts = data.shifts.filter(s => s.active && (!quickFactoryId || s.factoryId === quickFactoryId));
   const quickResources = quickFactoryId
     ? [
@@ -537,10 +538,8 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
                   )}
                 </SelectContent>
               </Select>
-              {quickForm.module === 'printing' && !!orderRowsCache[quickForm.orderId]?.find((r: any) => r.id === quickSelectedColourway?.orderRowId)?.no_of_colours && (
-                <Badge variant="outline" className="text-[10px]">
-                  {orderRowsCache[quickForm.orderId].find((r: any) => r.id === quickSelectedColourway?.orderRowId).no_of_colours} colours
-                </Badge>
+              {quickForm.module === 'printing' && !!quickSelectedRow?.no_of_colours && (
+                <Badge variant="outline" className="text-[10px]">{quickSelectedRow.no_of_colours}-colour print</Badge>
               )}
             </div>
           </div>

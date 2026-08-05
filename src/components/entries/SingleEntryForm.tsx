@@ -248,7 +248,7 @@ export default function SingleEntryForm({ defaultModule }: Props) {
             <Badge variant="outline" className="text-[10px]">Product: {selectedColourway.productCode} — {selectedColourway.productName}</Badge>
             <Badge variant="outline" className="text-[10px]">Colour: {selectedColourway.colourName}</Badge>
             {form.module === 'printing' && !!selectedRow?.no_of_colours && (
-              <Badge variant="outline" className="text-[10px]">{selectedRow.no_of_colours} colours</Badge>
+              <Badge variant="outline" className="text-[10px]">{selectedRow.no_of_colours}-colour print</Badge>
             )}
           </div>
         )}

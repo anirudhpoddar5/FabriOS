@@ -424,7 +424,8 @@ export default function OrderDetailPage() {
                     <TableHead className="text-xs h-8">UOM</TableHead>
                     <TableHead className="text-xs h-8">Rate</TableHead>
                     <TableHead className="text-xs h-8">Value</TableHead>
-                    <TableHead className="text-xs h-8">Colours</TableHead>
+                    <TableHead className="text-xs h-8">Print Colours</TableHead>
+                    <TableHead className="text-xs h-8">Colourways</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -442,7 +443,8 @@ export default function OrderDetailPage() {
                       <TableCell className="text-sm py-2">{r.uom}</TableCell>
                       <TableCell className="text-sm py-2">{r.rate_per_item ? `${order.currency || ''} ${r.rate_per_item}` : '—'}</TableCell>
                       <TableCell className="text-sm py-2 font-mono">{((r.order_qty || 0) * (r.rate_per_item || 0)).toFixed(0)}</TableCell>
-                      <TableCell className="text-sm py-2">{r.no_of_colours || r.colourways?.length || '—'}</TableCell>
+                      <TableCell className="text-sm py-2">{r.no_of_colours || '—'}</TableCell>
+                      <TableCell className="text-sm py-2">{r.colourways?.length || '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
