@@ -158,21 +158,36 @@ function DashboardContent() {
   const stitchingOrders = useMemo(() => filterOrders(data.stitchingOrders), [data.stitchingOrders, currentFactoryId, factoryOrderIds]);
 
   const stats = useMemo(() => {
-    const activePrinting = showP ? printingOrders.filter((o: any) => o.status === 'Started').length : 0;
-    const activeStitching = showS ? stitchingOrders.filter((o: any) => o.status === 'Started').length : 0;
+    // KPI counts (Active Orders, Overdue/Due, Needs Attention) must reflect ALL
+    // company orders — including "Not Started" ones with zero entries logged yet —
+    // not just orders that already have production at the selected factory. Uses
+    // the same unfiltered data.printingOrders/data.stitchingOrders source as the
+    // Order Visibility Board below. "Active" = status is Started (not yet
+    // Completed/Shipped/Cancelled); "Overdue" = past target/delivery date and still
+    // Started.
+    const allActiveOrders = [
+      ...(showP ? data.printingOrders : []),
+      ...(showS ? data.stitchingOrders : []),
+    ].filter((o: any) => o.status === 'Started');
+
+    const activePrinting = showP ? data.printingOrders.filter((o: any) => o.status === 'Started').length : 0;
+    const activeStitching = showS ? data.stitchingOrders.filter((o: any) => o.status === 'Started').length : 0;
     const activeOrders = activePrinting + activeStitching;
 
+    // allStarted stays factory-scoped: it feeds "In Production" and the overall
+    // production-progress bar below, which are intentionally scoped to whatever
+    // factory is selected (see "Showing orders with production at X" caption).
     const allStarted = [
       ...(showP ? printingOrders : []),
       ...(showS ? stitchingOrders : []),
     ].filter((o: any) => o.status === 'Started');
 
-    const delayedOrders = allStarted.filter((o: any) => {
+    const delayedOrders = allActiveOrders.filter((o: any) => {
       const pastTarget = o.targetEndDate && o.targetEndDate < today;
       const pastDelivery = o.buyerDeliveryDate && o.buyerDeliveryDate < today;
       return pastTarget || pastDelivery;
     }).length;
-    const dueToday = allStarted.filter((o: any) => o.buyerDeliveryDate === today).length;
+    const dueToday = allActiveOrders.filter((o: any) => o.buyerDeliveryDate === today).length;
 
     const todayEntries = filteredEntries.filter((e: any) => e.date === today);
     const openStockJobs = stockJobs.filter((j: any) => j.status === 'planned' || j.status === 'in_progress').length;
@@ -193,7 +208,7 @@ function DashboardContent() {
       totalProduced += filteredEntries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + e.outputQty, 0);
     });
 
-    const priorityOrders = allStarted.filter((o: any) =>
+    const priorityOrders = allActiveOrders.filter((o: any) =>
       o.buyerDeliveryDate && o.buyerDeliveryDate <= today
     ).sort((a: any, b: any) => a.buyerDeliveryDate.localeCompare(b.buyerDeliveryDate)).slice(0, 4);
 
@@ -218,7 +233,7 @@ function DashboardContent() {
       overdueTotal,
       activeSubcontract,
     };
-  }, [filteredEntries, printingOrders, stitchingOrders, today, currentModule, stockJobs, pos, invItems, dispatches, showP, showS, data.printingColourways, data.stitchingColourways, data.invoices, data.subcontractJobs]);
+  }, [filteredEntries, printingOrders, stitchingOrders, data.printingOrders, data.stitchingOrders, today, currentModule, stockJobs, pos, invItems, dispatches, showP, showS, data.printingColourways, data.stitchingColourways, data.invoices, data.subcontractJobs]);
 
   const overallPct = stats.totalOrdered > 0 ? (stats.totalProduced / stats.totalOrdered) * 100 : 0;
 
