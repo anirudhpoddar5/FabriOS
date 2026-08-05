@@ -74,6 +74,12 @@ export default function ReportsPage() {
       const { data } = await supabase.from('inventory_items').select('*').eq('company_id', companyId); return data || [];
     }, enabled: !!companyId,
   });
+  const { data: stockTxns = [] } = useQuery({
+    queryKey: ['stxn_rpt', companyId], queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('stock_transactions').select('*, inventory_items(name, code)').eq('company_id', companyId).order('txn_date', { ascending: false }).limit(500); return data || [];
+    }, enabled: !!companyId,
+  });
   const { data: materialIssues = [] } = useQuery({
     queryKey: ['material_issues_rpt', companyId], queryFn: async () => {
       if (!companyId) return [];
@@ -222,6 +228,7 @@ export default function ReportsPage() {
     { id: 'dispatch', label: 'Dispatch' },
     { id: 'po-status', label: 'PO Status' },
     { id: 'stock', label: 'Stock On Hand' },
+    { id: 'inward-outward', label: 'Inward/Outward' },
     { id: 'profit-loss', label: 'Profit/Loss' },
   ];
 
@@ -286,6 +293,14 @@ export default function ReportsPage() {
     return { totalItems, lowStock };
   }, [invItems]);
 
+  const inwardOutwardSummary = useMemo(() => {
+    const inward = stockTxns.filter((t: any) => t.txn_type === 'inward');
+    const outward = stockTxns.filter((t: any) => t.txn_type === 'outward');
+    const inwardQty = inward.reduce((s: number, t: any) => s + Number(t.qty || 0), 0);
+    const outwardQty = outward.reduce((s: number, t: any) => s + Number(t.qty || 0), 0);
+    return { inwardCount: inward.length, outwardCount: outward.length, inwardQty, outwardQty };
+  }, [stockTxns]);
+
   const profitSummary = useMemo(() => {
     const totalRevenue = profitLossData.reduce((s: number, r: any) => s + r.revenue, 0);
     const totalLabour = profitLossData.reduce((s: number, r: any) => s + r.labourCost, 0);
@@ -316,7 +331,7 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <h1 className="text-lg font-semibold mb-3 flex items-center gap-2">Reports <ExplainerTip text="7 report views: order status, production, delayed orders, dispatch, PO status, stock on hand, profit/loss. Export any to Excel, CSV, or PDF. Filter by date/module/buyer/status." /></h1>
+      <h1 className="text-lg font-semibold mb-3 flex items-center gap-2">Reports <ExplainerTip text="8 report views: order status, production, delayed orders, dispatch, PO status, stock on hand, inward/outward, profit/loss. Export any to Excel, CSV, or PDF. Filter by date/module/buyer/status." /></h1>
       <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto mb-3">
           <TabsList className="inline-flex min-w-max">
@@ -404,6 +419,19 @@ export default function ReportsPage() {
               const low = i.reorder_level > 0 && i.opening_stock <= i.reorder_level;
               return [i.code, i.name, i.category, i.uom, <span key="q" className={low ? 'text-destructive font-medium' : ''}>{i.opening_stock}</span>, String(i.reorder_level || '-')];
             })} />
+        </TabsContent>
+
+        <TabsContent value="inward-outward">
+          <ExportBtns csvHeaders={['Date','Item','Type','Qty','Lot','Batch','Remarks']} csvRows={stockTxns.map((t: any) => [t.txn_date,(t as any).inventory_items?.name||'',t.txn_type,t.qty,t.lot_number||'',t.batch_number||'',t.remarks||''])} csvFile="inward_outward.csv" pdfTitle="Inward / Outward Register" />
+          <SummaryCards cards={[
+            { label: 'Inward Txns', value: String(inwardOutwardSummary.inwardCount), icon: Package, color: 'bg-emerald-600' },
+            { label: 'Inward Qty', value: inwardOutwardSummary.inwardQty.toLocaleString(), icon: TrendingUp, color: 'bg-teal-600' },
+            { label: 'Outward Txns', value: String(inwardOutwardSummary.outwardCount), icon: Truck, color: 'bg-blue-600' },
+            { label: 'Outward Qty', value: inwardOutwardSummary.outwardQty.toLocaleString(), icon: ClipboardList, color: 'bg-indigo-600' },
+          ]} />
+          <ReportTable headers={['Date','Item','Type','Qty','Lot','Batch','Remarks']}
+            rows={stockTxns.map((t: any) => [t.txn_date, (t as any).inventory_items?.name || '-', <Badge key="t" variant={t.txn_type === 'inward' ? 'default' : 'secondary'} className="text-[9px]">{t.txn_type}</Badge>, String(t.qty), t.lot_number || '-', t.batch_number || '-', t.remarks || '-'])}
+            emptyMsg="No inward/outward transactions logged." />
         </TabsContent>
 
         <TabsContent value="profit-loss">
