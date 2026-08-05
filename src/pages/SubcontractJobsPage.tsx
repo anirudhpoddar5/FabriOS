@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { Button } from '@/components/ui/button';
@@ -49,7 +51,16 @@ export default function SubcontractJobsPage() {
 
   const jobs = appData.subcontractJobs;
   const orders = [...appData.printingOrders, ...appData.stitchingOrders];
-  const vendors = appData.buyers.filter((b: any) => b.active !== false);
+
+  const { data: vendors = [] } = useQuery({
+    queryKey: ['vendors', companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('vendors').select('*').eq('company_id', companyId).eq('is_active', true);
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
 
   const filtered = useMemo(() => {
     let list = [...jobs];
@@ -74,6 +85,7 @@ export default function SubcontractJobsPage() {
 
   const handleSave = async () => {
     if (!form.jobNumber) { toast.error('Job number required'); return; }
+    if (!form.subcontractorId) { toast.error('Subcontractor required'); return; }
     if (!form.qtySent || form.qtySent <= 0) { toast.error('Qty sent must be > 0'); return; }
     const payload = {
       jobNumber: form.jobNumber,
@@ -209,13 +221,22 @@ export default function SubcontractJobsPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div><Label className="text-xs">Order</Label>
                 <Select value={form.orderId || ''} onValueChange={v => setForm({ ...form, orderId: v })}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="Optional" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="no_order">None</SelectItem>
                     {orders.map((o: any) => <SelectItem key={o.id} value={o.id}>{o.internalPO}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Subcontractor *</Label>
+                <Select value={form.subcontractorId || ''} onValueChange={v => setForm({ ...form, subcontractorId: v })}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select vendor" /></SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
