@@ -80,6 +80,21 @@ export default function ReportsPage() {
       const { data } = await supabase.from('material_issues').select('*').eq('company_id', companyId); return data || [];
     }, enabled: !!companyId,
   });
+  // Per-order material rates: BOM line rate for the item, keyed by `${orderId}|${itemId}` (plan: "use the rate from the BOM line that matches the item")
+  const { data: bomHeaders = [] } = useQuery({
+    queryKey: ['bom_headers_rpt', companyId], queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('bom_headers').select('order_id, bom_lines(item_id, rate)').eq('company_id', companyId).not('order_id', 'is', null);
+      return data || [];
+    }, enabled: !!companyId,
+  });
+  const bomRateByOrderItem = useMemo(() => {
+    const map = new Map<string, number>();
+    bomHeaders.forEach((h: any) => (h.bom_lines || []).forEach((l: any) => {
+      if (h.order_id && l.item_id && l.rate != null) map.set(`${h.order_id}|${l.item_id}`, Number(l.rate));
+    }));
+    return map;
+  }, [bomHeaders]);
 
   const lookup = useMemo(() => ({
     buyer: (id: string) => { const b = data.buyers.find((x: any) => x.id === id); return b ? `${b.code}${b.name ? ' - ' + b.name : ''}` : '-'; },
@@ -174,23 +189,29 @@ export default function ReportsPage() {
   const profitLossData = useMemo(() => allOrders.map((o: any) => {
     const labourCost = data.entries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + e.costAmount, 0);
     const matIssues = materialIssues.filter((i: any) => i.order_id === o.id);
-    const materialQty = matIssues.reduce((s: number, i: any) => s + Number(i.qty_consumed || 0), 0);
-    const materialCost = matIssues.reduce((s: number, i: any) => s + Number(i.qty_consumed || 0) * 1, 0);
-    const cws = allColourways.filter((c: any) => c.orderId === o.id);
-    const qty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0) || o.orderQty || 0;
-    const rate = o.ratePerItem || 0;
+    // materialCost only sums lines with a resolvable BOM rate; unresolved lines contribute 0 rather than a fabricated rate
+    const materialCost = matIssues.reduce((s: number, i: any) => {
+      const rate = bomRateByOrderItem.get(`${o.id}|${i.item_id}`);
+      return s + (rate != null ? Number(i.qty_consumed || 0) * rate : 0);
+    }, 0);
+    // true only when material was issued but no BOM rate could be resolved for any line (cost is unknown, not zero)
+    const materialCostUnknown = matIssues.length > 0 && !matIssues.some((i: any) => bomRateByOrderItem.has(`${o.id}|${i.item_id}`));
+    // Order value: sum of order_rows (rate_per_item * order_qty), same source/pattern as OrderDetailPage's order value calc
+    const orderRowsForOrder = data.orderRows.filter((r: any) => r.orderId === o.id);
+    const rowValue = orderRowsForOrder.reduce((s: number, r: any) => s + (r.orderQty || 0) * (r.ratePerItem || 0), 0);
+    const qty = orderRowsForOrder.reduce((s: number, r: any) => s + (r.orderQty || 0), 0);
     const orderInvoices = data.invoices.filter((i: any) => i.orderId === o.id);
     const revenue = orderInvoices.length > 0
       ? orderInvoices.reduce((s: number, i: any) => s + i.grandTotal, 0)
-      : qty * rate;
+      : rowValue;
     const totalCost = labourCost + materialCost;
     const profit = revenue - totalCost;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
     return {
       module: o.module, po: o.internalPO, buyer: lookup.buyer(o.buyerId), style: o.style,
-      qty, rate, revenue, labourCost, materialCost, totalCost, profit, margin, status: o.status,
+      qty, revenue, labourCost, materialCost, materialCostUnknown, totalCost, profit, margin, status: o.status,
     };
-  }), [allOrders, allColourways, data.entries, data.invoices, materialIssues, lookup]);
+  }), [allOrders, data.orderRows, data.entries, data.invoices, materialIssues, bomRateByOrderItem, lookup]);
 
   const filterObj = { From: filters.dateFrom, To: filters.dateTo, Module: filters.module, Status: filters.status };
 
@@ -387,7 +408,7 @@ export default function ReportsPage() {
 
         <TabsContent value="profit-loss">
           <ExportBtns csvHeaders={['Module','PO','Buyer','Style','Qty','Revenue','Labour Cost','Material Cost','Total Cost','Profit','Margin','Status']}
-            csvRows={profitLossData.map(r => [r.module,r.po,r.buyer,r.style,r.qty,r.revenue.toFixed(2),r.labourCost.toFixed(2),r.materialCost.toFixed(2),r.totalCost.toFixed(2),r.profit.toFixed(2),r.margin.toFixed(1)+'%',r.status])}
+            csvRows={profitLossData.map(r => [r.module,r.po,r.buyer,r.style,r.qty,r.revenue.toFixed(2),r.labourCost.toFixed(2),r.materialCostUnknown ? 'N/A' : r.materialCost.toFixed(2),r.totalCost.toFixed(2),r.profit.toFixed(2),r.margin.toFixed(1)+'%',r.status])}
             csvFile="profit_loss.csv" pdfTitle="Profit & Loss by Order" />
           <SummaryCards cards={[
             { label: 'Total Revenue', value: `$${profitSummary.revenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'bg-emerald-600' },
@@ -399,7 +420,7 @@ export default function ReportsPage() {
           <ReportTable headers={['Module','PO','Buyer','Style','Qty','Revenue','Labour','Material','Cost','Profit','Margin','Status']}
             rows={profitLossData.map(r => [
               r.module, r.po, r.buyer, r.style, String(r.qty),
-              `$${r.revenue.toFixed(0)}`, `$${r.labourCost.toFixed(0)}`, `$${r.materialCost.toFixed(0)}`,
+              `$${r.revenue.toFixed(0)}`, `$${r.labourCost.toFixed(0)}`, r.materialCostUnknown ? '—' : `$${r.materialCost.toFixed(0)}`,
               `$${r.totalCost.toFixed(0)}`,
               <span key="p" className={r.profit >= 0 ? 'text-green-600 font-medium' : 'text-destructive font-medium'}>
                 {r.profit >= 0 ? '+' : ''}${r.profit.toFixed(0)}
