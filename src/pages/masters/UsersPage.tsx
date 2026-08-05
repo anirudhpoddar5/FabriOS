@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useData } from '@/context/DataContext';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,10 @@ export default function UsersPage() {
   const [inviteName, setInviteName] = useState('');
   const [editName, setEditName] = useState('');
   const [sending, setSending] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  // ponytail: refs back the guards so two clicks fired before React re-renders can't both pass.
+  const sendingRef = useRef(false);
+  const savingEditRef = useRef(false);
 
   const filtered = search
     ? users.filter((u: any) =>
@@ -30,7 +34,9 @@ export default function UsersPage() {
     : users;
 
   const handleInvite = async () => {
+    if (sendingRef.current) return;
     if (!inviteEmail || !inviteName) { toast.error('Name and email required'); return; }
+    sendingRef.current = true;
     setSending(true);
     try {
       const { data: profile } = await supabase.auth.getUser();
@@ -53,6 +59,7 @@ export default function UsersPage() {
     } catch (err: any) {
       toast.error(`Invite failed: ${err.message}`);
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -64,13 +71,21 @@ export default function UsersPage() {
   };
 
   const handleSaveEdit = async () => {
+    if (savingEditRef.current) return;
     if (!editingId || !editName) { toast.error('Name is required'); return; }
-    const result = await updateItem('users', editingId, { display_name: editName } as any);
-    if (result.error) { toast.error(`Update failed: ${result.error}`); return; }
-    toast.success('User updated');
-    setEditOpen(false);
-    setEditingId(null);
-    await refreshData();
+    savingEditRef.current = true;
+    setSavingEdit(true);
+    try {
+      const result = await updateItem('users', editingId, { display_name: editName } as any);
+      if (result.error) { toast.error(`Update failed: ${result.error}`); return; }
+      toast.success('User updated');
+      setEditOpen(false);
+      setEditingId(null);
+      await refreshData();
+    } finally {
+      savingEditRef.current = false;
+      setSavingEdit(false);
+    }
   };
 
   const handleToggleActive = async (user: any) => {
@@ -165,8 +180,8 @@ export default function UsersPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveEdit}>Save</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={savingEdit}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

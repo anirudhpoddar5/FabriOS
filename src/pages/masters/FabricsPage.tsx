@@ -23,6 +23,7 @@ export default function FabricsPage() {
   const { addItems } = useData();
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkRows, setBulkRows] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const handleBulkOpen = () => {
     setBulkRows([{ id: crypto.randomUUID(), name: '', shortForm: '', gsm: '', width: '', widthUnit: 'inches' }]);
@@ -46,19 +47,26 @@ export default function FabricsPage() {
     }));
   };
 
-  const saveBulk = () => {
+  const saveBulk = async () => {
+    if (saving) return;
     const valid = bulkRows.filter(r => r.name);
     if (valid.length === 0) { toast.error('Name required'); return; }
-    addItems('fabrics', valid.map(r => ({
-      id: generateId(), name: r.name,
-      shortForm: r.shortForm || suggestShortForm(r.name, r.gsm, r.width),
-      gsm: r.gsm ? parseFloat(r.gsm) : undefined,
-      width: r.width ? parseFloat(r.width) : undefined,
-      widthUnit: r.widthUnit || 'inches',
-      active: true
-    })) as Fabric[]);
-    toast.success(`Added ${valid.length} fabrics`);
-    setBulkMode(false);
+    setSaving(true);
+    try {
+      const result = await addItems('fabrics', valid.map(r => ({
+        id: generateId(), name: r.name,
+        shortForm: r.shortForm || suggestShortForm(r.name, r.gsm, r.width),
+        gsm: r.gsm ? parseFloat(r.gsm) : undefined,
+        width: r.width ? parseFloat(r.width) : undefined,
+        widthUnit: r.widthUnit || 'inches',
+        active: true
+      })) as Fabric[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Added ${valid.length} fabrics`);
+      setBulkMode(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -101,8 +109,8 @@ export default function FabricsPage() {
               ))}</TableBody>
             </Table>
             <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="outline" onClick={addBulkRow}>Add Row</Button>
-              <Button size="sm" onClick={saveBulk}>Save All</Button>
+              <Button size="sm" variant="outline" onClick={addBulkRow} disabled={saving}>Add Row</Button>
+              <Button size="sm" onClick={saveBulk} disabled={saving}>{saving ? 'Saving...' : 'Save All'}</Button>
             </div>
           </CardContent>
         </Card>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useData, generateId } from '@/context/DataContext';
 import { Factory, Shift } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,9 @@ export default function FactoriesShiftsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const [bulkRows, setBulkRows] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  // ponytail: ref backs the guard so two clicks fired before React re-renders can't both pass.
+  const savingRef = useRef(false);
 
   const factories = data.factories;
   const selectedFactory = factories.find(f => f.id === selectedFactoryId);
@@ -44,27 +47,43 @@ export default function FactoriesShiftsPage() {
   const handleAddFactory = () => { setEditingId(null); setForm({ code: '', name: '', type: 'mixed', active: true }); setFactoryDialog(true); };
   const handleEditFactory = (f: Factory) => { setEditingId(f.id); setForm({ ...f }); setFactoryDialog(true); };
   const handleSaveFactory = async () => {
+    if (savingRef.current) return;
     if (!form.code) { toast.error('Code required'); return; }
     if (!form.name) { toast.error('Name required'); return; }
-    let result: { error: string | null };
-    if (editingId) { result = await updateItem('factories', editingId, form); }
-    else { result = await addItem('factories', { ...form, id: generateId() } as Factory); }
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(editingId ? 'Factory updated' : 'Factory added');
-    setFactoryDialog(false);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      let result: { error: string | null };
+      if (editingId) { result = await updateItem('factories', editingId, form); }
+      else { result = await addItem('factories', { ...form, id: generateId() } as Factory); }
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(editingId ? 'Factory updated' : 'Factory added');
+      setFactoryDialog(false);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   // Shift CRUD
   const handleAddShift = () => { setEditingId(null); setForm({ factoryId: selectedFactoryId, code: '', name: '', startTime: '08:00', endTime: '17:00', active: true }); setShiftDialog(true); };
   const handleEditShift = (s: Shift) => { setEditingId(s.id); setForm({ ...s }); setShiftDialog(true); };
   const handleSaveShift = async () => {
+    if (savingRef.current) return;
     if (!form.code || !form.name) { toast.error('Code and name required'); return; }
-    let result: { error: string | null };
-    if (editingId) { result = await updateItem('shifts', editingId, form); }
-    else { result = await addItem('shifts', { ...form, id: generateId() } as Shift); }
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(editingId ? 'Shift updated' : 'Shift added');
-    setShiftDialog(false);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      let result: { error: string | null };
+      if (editingId) { result = await updateItem('shifts', editingId, form); }
+      else { result = await addItem('shifts', { ...form, id: generateId() } as Shift); }
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(editingId ? 'Shift updated' : 'Shift added');
+      setShiftDialog(false);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   // Bulk shift entry
@@ -75,13 +94,21 @@ export default function FactoriesShiftsPage() {
   const addBulkRow = () => setBulkRows(prev => [...prev, { id: crypto.randomUUID(), code: '', name: '', startTime: '08:00', endTime: '17:00' }]);
   const updateBulkRow = (id: string, field: string, value: string) => setBulkRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
   const saveBulkShifts = async () => {
+    if (savingRef.current) return;
     const valid = bulkRows.filter(r => r.code && r.name);
     if (valid.length === 0) { toast.error('No valid rows'); return; }
-    const items = valid.map(r => ({ id: generateId(), factoryId: selectedFactoryId!, code: r.code, name: r.name, startTime: r.startTime, endTime: r.endTime, active: true }));
-    const result = await addItems('shifts', items as Shift[]);
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(`Added ${items.length} shifts`);
-    setBulkShiftMode(false);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const items = valid.map(r => ({ id: generateId(), factoryId: selectedFactoryId!, code: r.code, name: r.name, startTime: r.startTime, endTime: r.endTime, active: true }));
+      const result = await addItems('shifts', items as Shift[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Added ${items.length} shifts`);
+      setBulkShiftMode(false);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   // Copy shifts
@@ -197,9 +224,9 @@ export default function FactoriesShiftsPage() {
                   </TableBody>
                 </Table>
                 <div className="flex gap-2 mt-2">
-                  <Button size="sm" variant="outline" onClick={addBulkRow}>Add Row</Button>
-                  <Button size="sm" onClick={saveBulkShifts}>Save All</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setBulkShiftMode(false)}>Cancel</Button>
+                  <Button size="sm" variant="outline" onClick={addBulkRow} disabled={saving}>Add Row</Button>
+                  <Button size="sm" onClick={saveBulkShifts} disabled={saving}>{saving ? 'Saving...' : 'Save All'}</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setBulkShiftMode(false)} disabled={saving}>Cancel</Button>
                 </div>
               </div>
             ) : (
@@ -255,8 +282,8 @@ export default function FactoriesShiftsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFactoryDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveFactory}>Save</Button>
+            <Button variant="outline" onClick={() => setFactoryDialog(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSaveFactory} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -274,8 +301,8 @@ export default function FactoriesShiftsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShiftDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveShift}>Save</Button>
+            <Button variant="outline" onClick={() => setShiftDialog(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSaveShift} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useData, generateId } from '@/context/DataContext';
 import { WorkerType, RateMaster } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,9 @@ export default function WorkersRatesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const [bulkRows, setBulkRows] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  // ponytail: ref backs the guard so two clicks fired before React re-renders can't both pass.
+  const savingRef = useRef(false);
 
   const workers = data.workerTypes;
   const factories = data.factories.filter(f => f.active);
@@ -57,50 +60,66 @@ export default function WorkersRatesPage() {
   };
   const handleEditWorker = (w: WorkerType) => { setEditingId(w.id); setForm({ ...w }); setWorkerDialog(true); };
   const handleSaveWorker = async () => {
+    if (savingRef.current) return;
     if (!form.name) { toast.error('Name required'); return; }
-    if (editingId) {
-      const result = await updateItem('workerTypes', editingId, form);
-      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-      toast.success('Updated');
-    } else {
-      const workerId = generateId();
-      const result = await addItem('workerTypes', { ...form, id: workerId } as WorkerType);
-      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-      if (form.defaultRateValue > 0 && factories.length > 0 && shifts.length > 0) {
-        const factoryId = form.factoryId || factories[0]?.id;
-        const factoryShifts = shifts.filter(s => s.factoryId === factoryId);
-        if (factoryShifts.length > 0) {
-          const rates = factoryShifts.map(s => ({
-            id: generateId(), factoryId, shiftId: s.id, workerTypeId: workerId,
-            rateBasis: form.defaultRateBasis || 'per_person_per_shift',
-            rateValue: form.defaultRateValue,
-            effectiveFrom: new Date().toISOString().slice(0, 10),
-            effectiveTo: '', active: true,
-          }));
-          await addItems('rateMasters', rates as RateMaster[]);
-          toast.success(`Added worker with ${rates.length} rate(s)`);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      if (editingId) {
+        const result = await updateItem('workerTypes', editingId, form);
+        if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+        toast.success('Updated');
+      } else {
+        const workerId = generateId();
+        const result = await addItem('workerTypes', { ...form, id: workerId } as WorkerType);
+        if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+        if (form.defaultRateValue > 0 && factories.length > 0 && shifts.length > 0) {
+          const factoryId = form.factoryId || factories[0]?.id;
+          const factoryShifts = shifts.filter(s => s.factoryId === factoryId);
+          if (factoryShifts.length > 0) {
+            const rates = factoryShifts.map(s => ({
+              id: generateId(), factoryId, shiftId: s.id, workerTypeId: workerId,
+              rateBasis: form.defaultRateBasis || 'per_person_per_shift',
+              rateValue: form.defaultRateValue,
+              effectiveFrom: new Date().toISOString().slice(0, 10),
+              effectiveTo: '', active: true,
+            }));
+            await addItems('rateMasters', rates as RateMaster[]);
+            toast.success(`Added worker with ${rates.length} rate(s)`);
+          } else {
+            toast.success('Added worker');
+          }
         } else {
           toast.success('Added worker');
         }
-      } else {
-        toast.success('Added worker');
       }
+      setWorkerDialog(false);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-    setWorkerDialog(false);
   };
 
   // Rate CRUD
   const handleAddRate = () => { setEditingId(null); setForm({ factoryId: '', shiftId: '', workerTypeId: selectedWorkerId, rateBasis: 'per_person_per_shift', rateValue: 0, effectiveFrom: new Date().toISOString().slice(0, 10), effectiveTo: '', active: true }); setRateDialog(true); };
   const handleEditRate = (r: RateMaster) => { setEditingId(r.id); setForm({ ...r }); setRateDialog(true); };
   const handleSaveRate = async () => {
+    if (savingRef.current) return;
     if (!form.factoryId || !form.shiftId) { toast.error('Factory and shift required'); return; }
     if (form.rateValue <= 0) { toast.error('Rate must be > 0'); return; }
-    let result: { error: string | null };
-    if (editingId) { result = await updateItem('rateMasters', editingId, form); }
-    else { result = await addItem('rateMasters', { ...form, id: generateId() } as RateMaster); }
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(editingId ? 'Rate updated' : 'Rate added');
-    setRateDialog(false);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      let result: { error: string | null };
+      if (editingId) { result = await updateItem('rateMasters', editingId, form); }
+      else { result = await addItem('rateMasters', { ...form, id: generateId() } as RateMaster); }
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(editingId ? 'Rate updated' : 'Rate added');
+      setRateDialog(false);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   // Bulk workers
@@ -109,12 +128,20 @@ export default function WorkersRatesPage() {
     setBulkMode('workers');
   };
   const saveBulkWorkers = async () => {
+    if (savingRef.current) return;
     const valid = bulkRows.filter(r => r.name);
     if (valid.length === 0) { toast.error('No valid rows'); return; }
-    const result = await addItems('workerTypes', valid.map(r => ({ id: generateId(), name: r.name, factoryId: r.factoryId || '', module: r.module, active: true })) as WorkerType[]);
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(`Added ${valid.length} workers`);
-    setBulkMode(null);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const result = await addItems('workerTypes', valid.map(r => ({ id: generateId(), name: r.name, factoryId: r.factoryId || '', module: r.module, active: true })) as WorkerType[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Added ${valid.length} workers`);
+      setBulkMode(null);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   // Bulk rates
@@ -123,12 +150,20 @@ export default function WorkersRatesPage() {
     setBulkMode('rates');
   };
   const saveBulkRates = async () => {
+    if (savingRef.current) return;
     const valid = bulkRows.filter(r => r.factoryId && r.shiftId && r.rateValue > 0);
     if (valid.length === 0) { toast.error('No valid rows'); return; }
-    const result = await addItems('rateMasters', valid.map(r => ({ id: generateId(), ...r, workerTypeId: selectedWorkerId!, active: true })) as RateMaster[]);
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(`Added ${valid.length} rates`);
-    setBulkMode(null);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const result = await addItems('rateMasters', valid.map(r => ({ id: generateId(), ...r, workerTypeId: selectedWorkerId!, active: true })) as RateMaster[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Added ${valid.length} rates`);
+      setBulkMode(null);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   // Copy rates
@@ -199,9 +234,9 @@ export default function WorkersRatesPage() {
               ))}</TableBody>
             </Table>
             <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="outline" onClick={addBulkRow}>Add Row</Button>
-              <Button size="sm" onClick={saveBulkWorkers}>Save All</Button>
-              <Button size="sm" variant="ghost" onClick={() => setBulkMode(null)}>Cancel</Button>
+              <Button size="sm" variant="outline" onClick={addBulkRow} disabled={saving}>Add Row</Button>
+              <Button size="sm" onClick={saveBulkWorkers} disabled={saving}>{saving ? 'Saving...' : 'Save All'}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setBulkMode(null)} disabled={saving}>Cancel</Button>
             </div>
           </CardContent>
         </Card>
@@ -287,9 +322,9 @@ export default function WorkersRatesPage() {
                   ))}</TableBody>
                 </Table>
                 <div className="flex gap-2 mt-2">
-                  <Button size="sm" variant="outline" onClick={addBulkRow}>Add Row</Button>
-                  <Button size="sm" onClick={saveBulkRates}>Save All</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setBulkMode(null)}>Cancel</Button>
+                  <Button size="sm" variant="outline" onClick={addBulkRow} disabled={saving}>Add Row</Button>
+                  <Button size="sm" onClick={saveBulkRates} disabled={saving}>{saving ? 'Saving...' : 'Save All'}</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setBulkMode(null)} disabled={saving}>Cancel</Button>
                 </div>
               </div>
             ) : (
@@ -372,7 +407,7 @@ export default function WorkersRatesPage() {
               </>
             )}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setWorkerDialog(false)}>Cancel</Button><Button onClick={handleSaveWorker}>Save</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setWorkerDialog(false)} disabled={saving}>Cancel</Button><Button onClick={handleSaveWorker} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -405,7 +440,7 @@ export default function WorkersRatesPage() {
               <div className="space-y-1"><Label className="text-xs">To (blank = forever)</Label><Input type="date" value={form.effectiveTo || ''} onChange={e => setForm((p: any) => ({ ...p, effectiveTo: e.target.value }))} /></div>
             </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setRateDialog(false)}>Cancel</Button><Button onClick={handleSaveRate}>Save</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setRateDialog(false)} disabled={saving}>Cancel</Button><Button onClick={handleSaveRate} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -16,6 +16,7 @@ export default function BuyersPage() {
   const { addItems } = useData();
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkRows, setBulkRows] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const handleBulkOpen = () => {
     setBulkRows([{ id: crypto.randomUUID(), code: '', name: '', contactPerson: '', country: '', phone: '', email: '', address: '' }]);
@@ -25,12 +26,19 @@ export default function BuyersPage() {
   const addBulkRow = () => setBulkRows(prev => [...prev, { id: crypto.randomUUID(), code: '', name: '', contactPerson: '', country: '', phone: '', email: '', address: '' }]);
   const updateBulkRow = (id: string, field: string, value: string) => setBulkRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
 
-  const saveBulk = () => {
+  const saveBulk = async () => {
+    if (saving) return;
     const valid = bulkRows.filter(r => r.code && r.country);
     if (valid.length === 0) { toast.error('Code and country required for each row'); return; }
-    addItems('buyers', valid.map(r => ({ id: generateId(), code: r.code, name: r.name, contactPerson: r.contactPerson, country: r.country, phone: r.phone, email: r.email, address: r.address, active: true })) as Buyer[]);
-    toast.success(`Added ${valid.length} buyers`);
-    setBulkMode(false);
+    setSaving(true);
+    try {
+      const result = await addItems('buyers', valid.map(r => ({ id: generateId(), code: r.code, name: r.name, contactPerson: r.contactPerson, country: r.country, phone: r.phone, email: r.email, address: r.address, active: true })) as Buyer[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Added ${valid.length} buyers`);
+      setBulkMode(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -81,8 +89,8 @@ export default function BuyersPage() {
               ))}</TableBody>
             </Table>
             <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="outline" onClick={addBulkRow}>Add Row</Button>
-              <Button size="sm" onClick={saveBulk}>Save All</Button>
+              <Button size="sm" variant="outline" onClick={addBulkRow} disabled={saving}>Add Row</Button>
+              <Button size="sm" onClick={saveBulk} disabled={saving}>{saving ? 'Saving...' : 'Save All'}</Button>
             </div>
           </CardContent>
         </Card>

@@ -20,6 +20,7 @@ export default function PrintingProductsPage() {
   const { addItems } = useData();
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkRows, setBulkRows] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const handleBulkOpen = () => {
     setBulkRows([{ id: crypto.randomUUID(), name: '', code: '', size: '', uom: 'meters' }]);
@@ -40,16 +41,22 @@ export default function PrintingProductsPage() {
   };
 
   const saveBulk = async () => {
+    if (saving) return;
     const valid = bulkRows.filter(r => r.name);
     if (valid.length === 0) { toast.error('Name required'); return; }
-    const result = await addItems('printingProducts', valid.map(r => ({
-      id: generateId(), name: r.name,
-      code: r.code || suggestCode(r.name, r.size),
-      size: r.size || '', uom: r.uom || 'meters', active: true
-    })) as PrintingProduct[]);
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(`Added ${valid.length} printing products`);
-    setBulkMode(false);
+    setSaving(true);
+    try {
+      const result = await addItems('printingProducts', valid.map(r => ({
+        id: generateId(), name: r.name,
+        code: r.code || suggestCode(r.name, r.size),
+        size: r.size || '', uom: r.uom || 'meters', active: true
+      })) as PrintingProduct[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Added ${valid.length} printing products`);
+      setBulkMode(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -101,8 +108,8 @@ export default function PrintingProductsPage() {
               ))}</TableBody>
             </Table>
             <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="outline" onClick={addBulkRow}>Add Row</Button>
-              <Button size="sm" onClick={saveBulk}>Save All</Button>
+              <Button size="sm" variant="outline" onClick={addBulkRow} disabled={saving}>Add Row</Button>
+              <Button size="sm" onClick={saveBulk} disabled={saving}>{saving ? 'Saving...' : 'Save All'}</Button>
             </div>
           </CardContent>
         </Card>

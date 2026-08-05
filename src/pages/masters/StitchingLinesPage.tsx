@@ -17,6 +17,7 @@ export default function StitchingLinesPage() {
   const getFactory = (id: string) => data.factories.find(f => f.id === id)?.name || id;
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkRows, setBulkRows] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const handleBulkOpen = () => {
     setBulkRows([{ id: crypto.randomUUID(), factoryId: '', code: '', name: '', machines: '', supervisorName: '' }]);
@@ -25,12 +26,18 @@ export default function StitchingLinesPage() {
   const addBulkRow = () => setBulkRows(prev => [...prev, { id: crypto.randomUUID(), factoryId: '', code: '', name: '', machines: '', supervisorName: '' }]);
   const updateBulkRow = (id: string, field: string, value: string) => setBulkRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
   const saveBulk = async () => {
+    if (saving) return;
     const valid = bulkRows.filter(r => r.factoryId && r.code && r.name);
     if (valid.length === 0) { toast.error('Factory, code, and name required'); return; }
-    const result = await addItems('stitchingLines', valid.map(r => ({ id: generateId(), factoryId: r.factoryId, code: r.code, name: r.name, machines: parseInt(r.machines) || undefined, supervisorName: r.supervisorName || undefined, active: true })) as StitchingLine[]);
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(`Added ${valid.length} lines`);
-    setBulkMode(false);
+    setSaving(true);
+    try {
+      const result = await addItems('stitchingLines', valid.map(r => ({ id: generateId(), factoryId: r.factoryId, code: r.code, name: r.name, machines: parseInt(r.machines) || undefined, supervisorName: r.supervisorName || undefined, active: true })) as StitchingLine[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Added ${valid.length} lines`);
+      setBulkMode(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (bulkMode) {
@@ -65,8 +72,8 @@ export default function StitchingLinesPage() {
             ))}</TableBody>
           </Table>
           <div className="flex gap-2 mt-2">
-            <Button size="sm" variant="outline" onClick={addBulkRow}>Add Row</Button>
-            <Button size="sm" onClick={saveBulk}>Save All</Button>
+            <Button size="sm" variant="outline" onClick={addBulkRow} disabled={saving}>Add Row</Button>
+            <Button size="sm" onClick={saveBulk} disabled={saving}>{saving ? 'Saving...' : 'Save All'}</Button>
           </div>
         </CardContent></Card>
       </div>
