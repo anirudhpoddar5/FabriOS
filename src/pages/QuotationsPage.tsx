@@ -477,9 +477,9 @@ export default function QuotationsPage() {
       <DataTablePagination {...pagination} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? 'Edit' : 'New'} Quotation</DialogTitle></DialogHeader>
-          <div className="grid gap-3">
+          <div className="grid gap-3 min-w-0">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div><Label className="text-xs">Quote # *</Label><Input value={form.quotationNumber || ''} onChange={e => setForm({ ...form, quotationNumber: e.target.value })} className="h-9" /></div>
               <div>
@@ -512,7 +512,7 @@ export default function QuotationsPage() {
             <div><Label className="text-xs">Remarks</Label><Input value={form.remarks || ''} onChange={e => setForm({ ...form, remarks: e.target.value })} className="h-9" /></div>
 
             {/* Line items */}
-            <div className="mt-2">
+            <div className="mt-2 min-w-0">
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-xs font-medium">Line Items</Label>
                 <Button size="sm" variant="outline" onClick={addLine}><Plus className="h-3 w-3 mr-1" /> Add Line</Button>
