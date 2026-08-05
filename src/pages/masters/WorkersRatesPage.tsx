@@ -168,13 +168,21 @@ export default function WorkersRatesPage() {
 
   // Copy rates
   const handleCopyRates = async () => {
+    if (savingRef.current) return;
     if (!copySourceId || !selectedWorkerId) return;
     const sourceRates = data.rateMasters.filter(r => r.workerTypeId === copySourceId && r.active);
     if (sourceRates.length === 0) { toast.error('No rates to copy'); return; }
-    const result = await addItems('rateMasters', sourceRates.map(r => ({ ...r, id: generateId(), workerTypeId: selectedWorkerId })) as RateMaster[]);
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(`Copied ${sourceRates.length} rates`);
-    setCopyDialog(false);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const result = await addItems('rateMasters', sourceRates.map(r => ({ ...r, id: generateId(), workerTypeId: selectedWorkerId })) as RateMaster[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Copied ${sourceRates.length} rates`);
+      setCopyDialog(false);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   const addBulkRow = () => setBulkRows(prev => [...prev, { id: crypto.randomUUID(), ...(bulkMode === 'workers' ? { name: '', factoryId: '', module: 'both', rateBasis: 'per_person_per_shift', rateValue: 0 } : { factoryId: '', shiftId: '', rateBasis: 'per_person_per_shift', rateValue: 0, effectiveFrom: new Date().toISOString().slice(0, 10), effectiveTo: '' }) }]);
@@ -454,7 +462,7 @@ export default function WorkersRatesPage() {
               <SelectContent>{workers.filter(w => w.id !== selectedWorkerId).map(w => <SelectItem key={w.id} value={w.id}>{w.name} ({data.rateMasters.filter(r => r.workerTypeId === w.id).length} rates)</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setCopyDialog(false)}>Cancel</Button><Button onClick={handleCopyRates}>Copy Rates</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setCopyDialog(false)} disabled={saving}>Cancel</Button><Button onClick={handleCopyRates} disabled={saving}>{saving ? 'Copying...' : 'Copy Rates'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

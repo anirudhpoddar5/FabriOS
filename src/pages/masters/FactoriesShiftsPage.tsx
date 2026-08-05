@@ -113,14 +113,22 @@ export default function FactoriesShiftsPage() {
 
   // Copy shifts
   const handleCopyShifts = async () => {
+    if (savingRef.current) return;
     if (!copySourceId || !selectedFactoryId) return;
     const sourceShifts = data.shifts.filter(s => s.factoryId === copySourceId && s.active);
     if (sourceShifts.length === 0) { toast.error('No shifts to copy'); return; }
-    const items = sourceShifts.map(s => ({ ...s, id: generateId(), factoryId: selectedFactoryId }));
-    const result = await addItems('shifts', items as Shift[]);
-    if (result.error) { toast.error(`Failed: ${result.error}`); return; }
-    toast.success(`Copied ${items.length} shifts`);
-    setCopyDialog(false);
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const items = sourceShifts.map(s => ({ ...s, id: generateId(), factoryId: selectedFactoryId }));
+      const result = await addItems('shifts', items as Shift[]);
+      if (result.error) { toast.error(`Failed: ${result.error}`); return; }
+      toast.success(`Copied ${items.length} shifts`);
+      setCopyDialog(false);
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   // Paste handler for bulk
@@ -322,8 +330,8 @@ export default function FactoriesShiftsPage() {
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCopyDialog(false)}>Cancel</Button>
-            <Button onClick={handleCopyShifts}>Copy Shifts</Button>
+            <Button variant="outline" onClick={() => setCopyDialog(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={handleCopyShifts} disabled={saving}>{saving ? 'Copying...' : 'Copy Shifts'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
