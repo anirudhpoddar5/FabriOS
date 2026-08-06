@@ -245,6 +245,7 @@ export default function ReportsPage() {
     { id: 'grn-pending', label: 'GRN Pending' },
     { id: 'bill-tracking', label: 'Bill Tracking' },
     { id: 'stock', label: 'Stock On Hand' },
+    { id: 'shortage', label: 'Shortage' },
     { id: 'inward-outward', label: 'Inward/Outward' },
     { id: 'consumption', label: 'Consumption vs BOM' },
     { id: 'vendor-perf', label: 'Vendor Performance' },
@@ -349,6 +350,11 @@ export default function ReportsPage() {
     const lowStock = invItems.filter((i: any) => i.reorder_level > 0 && i.opening_stock <= i.reorder_level).length;
     return { totalItems, lowStock };
   }, [invItems]);
+
+  // Shortage: inventory_items whose on-hand qty (opening_stock) has fallen to/below its static reorder_level.
+  // Same filter as stockSummary.lowStock above (5f51b7c's original formula) — this is a reorder-point check
+  // against inventory_items, not a BOM-required-vs-available projection or a check against in-transit POs.
+  const lowStockItems = useMemo(() => invItems.filter((i: any) => i.reorder_level > 0 && i.opening_stock <= i.reorder_level), [invItems]);
 
   const inwardOutwardSummary = useMemo(() => {
     const inward = stockTxns.filter((t: any) => t.txn_type === 'inward');
@@ -584,6 +590,16 @@ export default function ReportsPage() {
               const low = i.reorder_level > 0 && i.opening_stock <= i.reorder_level;
               return [i.code, i.name, i.category, i.uom, <span key="q" className={low ? 'text-destructive font-medium' : ''}>{i.opening_stock}</span>, String(i.reorder_level || '-')];
             })} />
+        </TabsContent>
+
+        <TabsContent value="shortage">
+          <ExportBtns csvHeaders={['Code','Name','Category','On Hand','Reorder','Shortage']} csvRows={lowStockItems.map((i: any) => [i.code,i.name,i.category,i.opening_stock,i.reorder_level,i.reorder_level-i.opening_stock])} csvFile="shortage.csv" pdfTitle="Shortage Report" />
+          <SummaryCards cards={[
+            { label: 'Items Short', value: String(lowStockItems.length), icon: AlertTriangle, color: lowStockItems.length > 0 ? 'bg-red-600' : 'bg-emerald-600' },
+            { label: 'Total Shortage Qty', value: lowStockItems.reduce((s: number, i: any) => s + (i.reorder_level - i.opening_stock), 0).toLocaleString(), icon: Package, color: 'bg-orange-600' },
+          ]} />
+          <ReportTable headers={['Code','Name','Category','On Hand','Reorder','Shortage']}
+            rows={lowStockItems.map((i: any) => [i.code, i.name, i.category, String(i.opening_stock), String(i.reorder_level), <span key="s" className="text-destructive font-medium">{i.reorder_level - i.opening_stock}</span>])} emptyMsg="No items below reorder level" />
         </TabsContent>
 
         <TabsContent value="inward-outward">
