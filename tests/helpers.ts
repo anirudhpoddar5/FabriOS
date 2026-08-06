@@ -57,8 +57,12 @@ export async function fillField(page: Page, label: string, value: string) {
 
 // ── Auth ──
 
-export const TEST_EMAIL = 'steelman@fabrios-demo.com';
-export const TEST_PASSWORD = 'SteelMan@Demo2026!';
+export const TEST_EMAIL = process.env.FABRIOS_TEST_EMAIL ?? 'steelman@fabrios-demo.com';
+export const TEST_PASSWORD = (() => {
+  const pw = process.env.FABRIOS_TEST_PASSWORD;
+  if (!pw) throw new Error('Set FABRIOS_TEST_PASSWORD before running tests that import tests/helpers.ts');
+  return pw;
+})();
 export const TEST_COMPANY = 'SteelM Industries';
 export const TEST_DISPLAY = 'SteelMan Tester';
 

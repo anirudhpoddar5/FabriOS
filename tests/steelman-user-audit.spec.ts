@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import { TEST_EMAIL, TEST_PASSWORD } from './helpers';
 
 const RUN_ID = Date.now().toString(36).toUpperCase();
 
@@ -38,8 +39,8 @@ async function gotoApp(page: Page, path: string) {
     await page.getByRole('button', { name: /^sign in$/i }).isVisible({ timeout: 1_500 }).catch(() => false);
 
   if (needsLogin) {
-    await page.getByPlaceholder('you@company.com').fill('steelman@fabrios-demo.com');
-    await page.getByPlaceholder('••••••••').fill('SteelMan@Demo2026!');
+    await page.getByPlaceholder('you@company.com').fill(TEST_EMAIL);
+    await page.getByPlaceholder('••••••••').fill(TEST_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 20_000 });
     await page.evaluate(() => {
