@@ -34,6 +34,7 @@ const UsersPage = lazy(() => import("@/pages/masters/UsersPage"));
 const PrintingOrdersPage = lazy(() => import("@/pages/PrintingOrdersPage"));
 const StitchingOrdersPage = lazy(() => import("@/pages/StitchingOrdersPage"));
 const OrderDetailPage = lazy(() => import("@/pages/OrderDetailPage"));
+const OrderPODPage = lazy(() => import("@/pages/OrderPODPage"));
 const EntriesPage = lazy(() => import("@/pages/EntriesPage"));
 const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
 const BomPage = lazy(() => import("@/pages/BomPage"));
@@ -142,8 +143,10 @@ function AppRoutes() {
             <Route path="/settings/vendors" element={<VendorsPage />} />
             <Route path="/printing-orders" element={<PrintingOrdersPage />} />
             <Route path="/printing-orders/:id" element={<OrderDetailPage />} />
+            <Route path="/printing-orders/:id/pod" element={<OrderPODPage />} />
             <Route path="/stitching-orders" element={<StitchingOrdersPage />} />
             <Route path="/stitching-orders/:id" element={<OrderDetailPage />} />
+            <Route path="/stitching-orders/:id/pod" element={<OrderPODPage />} />
             <Route path="/entries" element={<EntriesPage />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/material-issues" element={<MaterialIssuesPage />} />
