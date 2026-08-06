@@ -247,6 +247,7 @@ export default function ReportsPage() {
     { id: 'inward-outward', label: 'Inward/Outward' },
     { id: 'consumption', label: 'Consumption vs BOM' },
     { id: 'vendor-perf', label: 'Vendor Performance' },
+    { id: 'buyer-summary', label: 'By Buyer' },
     { id: 'profit-loss', label: 'Profit/Loss' },
   ];
 
@@ -391,6 +392,30 @@ export default function ReportsPage() {
     });
     return Object.values(vendorMap);
   }, [pos]);
+
+  // Buyer-wise summary: order count / ordered qty (from colourways) / dispatched qty / revenue per buyer.
+  // Revenue uses order_rows (rate_per_item * order_qty) — same source/pattern as profitLossData's rowValue,
+  // not the order header (order_headers has no ratePerItem/orderQty; that was the P&L bug, not repeating it here).
+  // Dispatch buyer is keyed by dispatch_records.buyer_id via lookup.buyer() (not the raw dispatches.buyers?.name
+  // join) so it lands in the same map bucket as the order-derived buyer key ("CODE - Name" format).
+  const buyerSummary = useMemo(() => {
+    const map: Record<string, { name: string; orders: number; orderedQty: number; dispatchedQty: number; revenue: number }> = {};
+    allOrders.forEach((o: any) => {
+      const buyerName = lookup.buyer(o.buyerId);
+      if (!map[buyerName]) map[buyerName] = { name: buyerName, orders: 0, orderedQty: 0, dispatchedQty: 0, revenue: 0 };
+      map[buyerName].orders += 1;
+      const cws = allColourways.filter((c: any) => c.orderId === o.id);
+      map[buyerName].orderedQty += cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0);
+      const rowValue = data.orderRows.filter((r: any) => r.orderId === o.id).reduce((s: number, r: any) => s + (r.orderQty || 0) * (r.ratePerItem || 0), 0);
+      map[buyerName].revenue += rowValue;
+    });
+    dispatches.forEach((d: any) => {
+      const buyerName = lookup.buyer(d.buyer_id);
+      if (!map[buyerName]) map[buyerName] = { name: buyerName, orders: 0, orderedQty: 0, dispatchedQty: 0, revenue: 0 };
+      map[buyerName].dispatchedQty += Number(d.qty) || 0;
+    });
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue);
+  }, [allOrders, allColourways, dispatches, data.orderRows, lookup]);
 
   const profitSummary = useMemo(() => {
     const totalRevenue = profitLossData.reduce((s: number, r: any) => s + r.revenue, 0);
@@ -567,6 +592,18 @@ export default function ReportsPage() {
           <ReportTable headers={['Vendor','PO Count','Total Ordered','Received Value','Pending Value']}
             rows={vendorPerfData.map(r => [r.name, String(r.poCount), `₹${r.totalOrdered.toFixed(0)}`, `₹${r.totalReceived.toFixed(0)}`,
               <span key="pv" className={r.pendingValue > 0 ? 'text-destructive font-medium' : 'text-green-600 font-medium'}>{r.pendingValue > 0 ? `₹${r.pendingValue.toFixed(0)}` : 'Clear'}</span>])} emptyMsg="No vendor data" />
+        </TabsContent>
+
+        <TabsContent value="buyer-summary">
+          <ExportBtns csvHeaders={['Buyer','Orders','Ordered Qty','Dispatched Qty','Balance','Revenue']}
+            csvRows={buyerSummary.map(r => [r.name, r.orders, r.orderedQty, r.dispatchedQty, r.orderedQty - r.dispatchedQty, r.revenue.toFixed(2)])}
+            csvFile="buyer_summary.csv" pdfTitle="Buyer-wise Summary" />
+          <ReportTable headers={['Buyer','Orders','Ordered','Dispatched','Balance','Revenue']}
+            rows={buyerSummary.map(r => [
+              r.name, String(r.orders), String(r.orderedQty), String(r.dispatchedQty),
+              <span key="b" className={r.orderedQty - r.dispatchedQty > 0 ? '' : 'text-green-600'}>{r.orderedQty - r.dispatchedQty}</span>,
+              `₹${r.revenue.toFixed(0)}`,
+            ])} emptyMsg="No buyer data. Create orders to see buyer summary." />
         </TabsContent>
 
         <TabsContent value="profit-loss">
