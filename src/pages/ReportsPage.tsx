@@ -283,6 +283,7 @@ export default function ReportsPage() {
     { id: 'shortage', label: 'Shortage' },
     { id: 'inward-outward', label: 'Inward/Outward' },
     { id: 'consumption', label: 'Consumption vs BOM' },
+    { id: 'capacity', label: 'Capacity vs Demand' },
     { id: 'vendor-perf', label: 'Vendor Performance' },
     { id: 'buyer-summary', label: 'By Buyer' },
     { id: 'profit-loss', label: 'Profit/Loss' },
@@ -433,6 +434,33 @@ export default function ReportsPage() {
     consumed: consumptionData.reduce((s: number, r: any) => s + r.consumed, 0),
     overCount: consumptionData.filter((r: any) => r.variance > 0).length,
   }), [consumptionData]);
+
+  // Capacity vs demand: "capacity" = count of active production resources (printing_tables /
+  // stitching_lines rows, same tables ProductionControlPage's own "Capacity" tab already reads via
+  // data.printingTables/data.stitchingLines — neither table has a numeric capacity/throughput column
+  // in the current schema, checked src/integrations/supabase/types.ts directly), "demand" = count of
+  // this module's orders currently Started (from the page's own filtered `allOrders`, same as the
+  // original 5f51b7c formula — so the Status filter above can interact with this tab, an original quirk
+  // kept as-is, not introduced here). This is a headcount ratio (1 order counts the same as any other
+  // regardless of size/duration), not a true meters/day or hours-based capacity model — same limitation
+  // the original had. Load = demand / capacity * 100.
+  const capacityDemandData = useMemo(() => {
+    const printingCapacity = data.printingTables.filter((t: any) => t.active !== false).length;
+    const stitchingCapacity = data.stitchingLines.filter((l: any) => l.active !== false).length;
+    const printingDemand = allOrders.filter((o: any) => o.module === 'printing' && o.status === 'Started').length;
+    const stitchingDemand = allOrders.filter((o: any) => o.module === 'stitching' && o.status === 'Started').length;
+    const mk = (capacity: number, demand: number) => ({ capacity, demand, load: capacity > 0 ? Math.round((demand / capacity) * 100) : 0 });
+    return { printing: mk(printingCapacity, printingDemand), stitching: mk(stitchingCapacity, stitchingDemand) };
+  }, [data.printingTables, data.stitchingLines, allOrders]);
+  const capacityRows = useMemo(() => [
+    { module: 'Printing', ...capacityDemandData.printing },
+    { module: 'Stitching', ...capacityDemandData.stitching },
+  ], [capacityDemandData]);
+  const capacitySummary = useMemo(() => ({
+    totalCapacity: capacityDemandData.printing.capacity + capacityDemandData.stitching.capacity,
+    totalDemand: capacityDemandData.printing.demand + capacityDemandData.stitching.demand,
+    overloaded: [capacityDemandData.printing, capacityDemandData.stitching].filter(m => m.load > 100).length,
+  }), [capacityDemandData]);
 
   // Vendor performance: PO count / total ordered / received / pending value per vendor.
   // Same 'received'|'closed'|'cancelled' status vocabulary as pendingPurchase above — no on-time/delay
@@ -690,6 +718,21 @@ export default function ReportsPage() {
               <span key="v" className={r.variance > 0 ? 'text-destructive font-medium' : 'text-green-600'}>{r.variance > 0 ? '+' : ''}{r.variance.toFixed(2)}</span>,
               r.uom,
             ])} emptyMsg="No BOM data. Create BOMs and record material issues to see consumption variance." />
+        </TabsContent>
+
+        <TabsContent value="capacity">
+          <ExportBtns csvHeaders={['Module','Capacity (Tables/Lines)','Active Orders (Demand)','Load %']} csvRows={capacityRows.map(r => [r.module, r.capacity, r.demand, r.load])} csvFile="capacity_vs_demand.csv" pdfTitle="Capacity vs Demand" />
+          <SummaryCards cards={[
+            { label: 'Total Capacity', value: String(capacitySummary.totalCapacity), icon: BarChart3, color: 'bg-blue-600' },
+            { label: 'Active Orders', value: String(capacitySummary.totalDemand), icon: Package, color: 'bg-indigo-600' },
+            { label: 'Overloaded Modules', value: String(capacitySummary.overloaded), icon: AlertTriangle, color: capacitySummary.overloaded > 0 ? 'bg-red-600' : 'bg-emerald-600' },
+          ]} />
+          <ReportTable headers={['Module','Available Tables/Lines','Active Orders','Load']}
+            rows={capacityRows.map(r => [r.module, String(r.capacity), String(r.demand),
+              <Badge key="l" variant={r.load > 100 ? 'destructive' : r.load > 80 ? 'secondary' : 'outline'} className="text-[9px]">
+                {r.load}%{r.load > 100 ? ' Overloaded' : r.load > 80 ? ' High' : ' Normal'}
+              </Badge>,
+            ])} emptyMsg="No printing tables or stitching lines configured." />
         </TabsContent>
 
         <TabsContent value="vendor-perf">
