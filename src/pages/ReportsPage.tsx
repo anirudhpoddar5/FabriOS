@@ -107,6 +107,14 @@ export default function ReportsPage() {
     }));
     return map;
   }, [bomHeaders]);
+  // Full BOM headers+lines for the Consumption vs BOM report (needs title/category/quantity/uom, not just rate)
+  const { data: bomHeadersFull = [] } = useQuery({
+    queryKey: ['bom_headers_full_rpt', companyId], queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase.from('bom_headers').select('id, title, order_id, bom_lines(*)').eq('company_id', companyId);
+      return data || [];
+    }, enabled: !!companyId,
+  });
 
   const lookup = useMemo(() => ({
     buyer: (id: string) => { const b = data.buyers.find((x: any) => x.id === id); return b ? `${b.code}${b.name ? ' - ' + b.name : ''}` : '-'; },
@@ -237,6 +245,7 @@ export default function ReportsPage() {
     { id: 'grn-pending', label: 'GRN Pending' },
     { id: 'stock', label: 'Stock On Hand' },
     { id: 'inward-outward', label: 'Inward/Outward' },
+    { id: 'consumption', label: 'Consumption vs BOM' },
     { id: 'profit-loss', label: 'Profit/Loss' },
   ];
 
@@ -330,6 +339,40 @@ export default function ReportsPage() {
     const outwardQty = outward.reduce((s: number, t: any) => s + Number(t.qty || 0), 0);
     return { inwardCount: inward.length, outwardCount: outward.length, inwardQty, outwardQty };
   }, [stockTxns]);
+
+  // Consumption vs BOM: planned qty per BOM line vs actual material_issues.qty_consumed for the same order+item.
+  // Matched by order_id + item_name (same matching convention MaterialIssuesPage's "BOM vs Actual" tab already uses).
+  const consumptionData = useMemo(() => {
+    const rows: any[] = [];
+    bomHeadersFull.forEach((bom: any) => {
+      (bom.bom_lines || []).forEach((line: any) => {
+        const plannedQty = Number(line.quantity ?? 0) * (1 + (Number(line.extra_pct) || 0) / 100);
+        const consumed = bom.order_id
+          ? materialIssues
+              .filter((i: any) => i.order_id === bom.order_id && i.item_name === line.item_name)
+              .reduce((s: number, i: any) => s + Number(i.qty_consumed || 0), 0)
+          : 0;
+        rows.push({
+          bomTitle: bom.title || '-',
+          orderRef: bom.order_id ? lookup.orderPO(bom.order_id) : '-',
+          item: line.item_name || '-',
+          category: line.category || '-',
+          planned: Math.round(plannedQty * 100) / 100,
+          consumed: Math.round(consumed * 100) / 100,
+          balance: Math.round((plannedQty - consumed) * 100) / 100,
+          variance: consumed - plannedQty,
+          uom: line.uom || '',
+        });
+      });
+    });
+    return rows;
+  }, [bomHeadersFull, materialIssues, lookup]);
+  const consumptionSummary = useMemo(() => ({
+    count: consumptionData.length,
+    planned: consumptionData.reduce((s: number, r: any) => s + r.planned, 0),
+    consumed: consumptionData.reduce((s: number, r: any) => s + r.consumed, 0),
+    overCount: consumptionData.filter((r: any) => r.variance > 0).length,
+  }), [consumptionData]);
 
   const profitSummary = useMemo(() => {
     const totalRevenue = profitLossData.reduce((s: number, r: any) => s + r.revenue, 0);
@@ -483,6 +526,22 @@ export default function ReportsPage() {
           <ReportTable headers={['Date','Item','Type','Qty','Lot','Batch','Remarks']}
             rows={stockTxns.map((t: any) => [t.txn_date, (t as any).inventory_items?.name || '-', <Badge key="t" variant={t.txn_type === 'inward' ? 'default' : 'secondary'} className="text-[9px]">{t.txn_type}</Badge>, String(t.qty), t.lot_number || '-', t.batch_number || '-', t.remarks || '-'])}
             emptyMsg="No inward/outward transactions logged." />
+        </TabsContent>
+
+        <TabsContent value="consumption">
+          <ExportBtns csvHeaders={['BOM','Order','Item','Category','Planned','Consumed','Balance','Variance','UOM']} csvRows={consumptionData.map((r: any) => [r.bomTitle,r.orderRef,r.item,r.category,r.planned,r.consumed,r.balance,r.variance.toFixed(2),r.uom])} csvFile="consumption_vs_bom.csv" pdfTitle="Material Consumption vs BOM" />
+          <SummaryCards cards={[
+            { label: 'BOM Lines', value: String(consumptionSummary.count), icon: ClipboardList, color: 'bg-blue-600' },
+            { label: 'Total Planned', value: consumptionSummary.planned.toLocaleString(undefined, { maximumFractionDigits: 1 }), icon: Package, color: 'bg-indigo-600' },
+            { label: 'Total Consumed', value: consumptionSummary.consumed.toLocaleString(undefined, { maximumFractionDigits: 1 }), icon: TrendingUp, color: 'bg-emerald-600' },
+            { label: 'Over-consumed Lines', value: String(consumptionSummary.overCount), icon: AlertTriangle, color: consumptionSummary.overCount > 0 ? 'bg-red-600' : 'bg-teal-600' },
+          ]} />
+          <ReportTable headers={['BOM','Order','Item','Category','Planned','Consumed','Balance','Variance','UOM']}
+            rows={consumptionData.map((r: any) => [
+              r.bomTitle, r.orderRef, r.item, r.category, r.planned.toLocaleString(), r.consumed.toLocaleString(), r.balance.toLocaleString(),
+              <span key="v" className={r.variance > 0 ? 'text-destructive font-medium' : 'text-green-600'}>{r.variance > 0 ? '+' : ''}{r.variance.toFixed(2)}</span>,
+              r.uom,
+            ])} emptyMsg="No BOM data. Create BOMs and record material issues to see consumption variance." />
         </TabsContent>
 
         <TabsContent value="profit-loss">
