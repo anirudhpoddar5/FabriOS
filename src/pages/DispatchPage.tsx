@@ -148,6 +148,171 @@ export default function DispatchPage() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'dispatches.csv'; a.click();
   };
 
+  const handlePrintChallan = async (d: any) => {
+    // Open the window synchronously, inside the click handler, before any await — once we
+    // cross an await boundary the browser no longer treats window.open as user-gesture-
+    // triggered and popup blockers silently block it.
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) { alert('Please allow pop-ups to print'); return; }
+    printWindow.document.write('<p style="font-family:sans-serif;padding:20px;color:#666">Preparing challan…</p>');
+
+    const company = appData.companies?.[0];
+    const buyer = appData.buyers.find((b: any) => b.id === d.buyer_id);
+    const order = d.order_id
+      ? [...appData.printingOrders, ...appData.stitchingOrders].find((o: any) => o.id === d.order_id)
+      : null;
+
+    // dispatch_records has no rate/value column — look up the matching order_row's
+    // rate_per_item on demand (only when printing) rather than loading it for every row.
+    let rate: number | null = null;
+    if (d.order_id) {
+      const { data: rows } = await supabase.from('order_rows').select('*').eq('order_id', d.order_id);
+      const isPrinting = !!order && appData.printingOrders.some((o: any) => o.id === order.id);
+      const match = (rows || []).find((r: any) => {
+        const product = isPrinting
+          ? appData.printingProducts.find((p: any) => p.id === r.product_id)
+          : appData.stitchingProducts.find((p: any) => p.id === r.product_id);
+        return product?.name === d.product_name;
+      })
+        // Fall back to the order's only row when product_id is unset (common in this data
+        // set) and there's nothing ambiguous to pick between — never guess among several.
+        || ((rows || []).length === 1 ? rows[0] : undefined);
+      rate = match ? Number(match.rate_per_item) || 0 : null;
+    }
+    const value = rate !== null ? rate * Number(d.qty || 0) : null;
+    const currency = order?.currency || '';
+
+    // All of the above can contain free-text database values (addresses, remarks, names) —
+    // escape before interpolating into the print window's HTML to avoid stored XSS.
+    const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+    ));
+
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    printWindow.document.open();
+    printWindow.document.write(`<!DOCTYPE html>
+<html><head><title>Delivery Challan - ${esc(d.challan_number || d.id.slice(0, 8))}</title>
+<style>
+  @page { size: A4 portrait; margin: 15mm 18mm; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; color: #1a1a2e; font-size: 11px; line-height: 1.5; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 3px double #1a1a2e; }
+  .company-info { max-width: 50%; }
+  .company-info h1 { font-size: 20px; margin: 0 0 4px; color: #1a1a2e; }
+  .company-info .legal { font-size: 10px; color: #666; }
+  .company-info .detail { font-size: 10px; color: #444; margin-top: 4px; }
+  .doc-title { text-align: right; }
+  .doc-title h2 { font-size: 22px; margin: 0; color: #1a1a2e; letter-spacing: 2px; text-transform: uppercase; }
+  .doc-title .doc-number { font-size: 14px; font-weight: bold; color: #d4a017; margin-top: 2px; }
+  .doc-title .date { font-size: 9px; color: #888; margin-top: 4px; }
+  .addresses { display: flex; justify-content: space-between; margin-bottom: 20px; gap: 20px; }
+  .address-box { flex: 1; border: 1px solid #ddd; border-radius: 4px; padding: 10px 12px; background: #fafafa; }
+  .address-box h3 { font-size: 10px; margin: 0 0 6px; text-transform: uppercase; color: #666; letter-spacing: 1px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+  .address-box p { margin: 2px 0; font-size: 10px; color: #333; }
+  .info-row { display: flex; flex-wrap: wrap; margin-bottom: 12px; gap: 20px; }
+  .info-item { font-size: 10px; color: #555; }
+  .info-item strong { color: #1a1a2e; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  th { background: #1a1a2e; color: white; padding: 7px 8px; font-size: 10px; text-align: left; font-weight: 600; }
+  th.right { text-align: right; }
+  th.center { text-align: center; }
+  td { padding: 6px 8px; border: 1px solid #ddd; font-size: 10px; }
+  td.right { text-align: right; }
+  td.center { text-align: center; }
+  .total-row td { font-weight: bold; background: #f0f0f0; border-top: 2px solid #1a1a2e; font-size: 11px; }
+  .signatures { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 16px; border-top: 1px solid #ddd; }
+  .signature-box { text-align: center; width: 40%; }
+  .signature-box .line { border-top: 1px solid #333; padding-top: 4px; margin-top: 36px; font-size: 10px; color: #555; }
+  .footer { margin-top: 24px; font-size: 8px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 8px; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 2px; font-size: 9px; border: 1px solid #ddd; background: #f5f5f5; }
+</style></head><body>
+  <div class="header">
+    <div class="company-info">
+      <h1>${esc(company?.legal_name || company?.name || 'Your Company')}</h1>
+      <div class="legal">${company?.legal_name && company?.name ? `Trading as ${esc(company.name)}` : ''}</div>
+      ${company?.address ? `<div class="detail">${esc(company.address)}</div>` : ''}
+    </div>
+    <div class="doc-title">
+      <h2>Delivery Challan</h2>
+      <div class="doc-number">${esc(d.challan_number) || '—'}</div>
+      <div class="date">Printed: ${today}</div>
+    </div>
+  </div>
+
+  <div class="addresses">
+    <div class="address-box">
+      <h3>Consignee</h3>
+      <p><strong>${esc(buyer?.name || (d as any).buyers?.name) || '—'}</strong></p>
+      ${buyer?.address ? `<p>${esc(buyer.address)}</p>` : ''}
+      ${buyer?.contact_person ? `<p>Attn: ${esc(buyer.contact_person)}</p>` : ''}
+      ${buyer?.phone ? `<p>Phone: ${esc(buyer.phone)}</p>` : ''}
+    </div>
+    <div class="address-box">
+      <h3>Dispatched From</h3>
+      <p><strong>${esc(company?.legal_name || company?.name || 'Your Company')}</strong></p>
+      ${company?.address ? `<p>${esc(company.address)}</p>` : ''}
+    </div>
+  </div>
+
+  <div class="info-row">
+    <div class="info-item"><strong>Dispatch Date:</strong> ${esc(d.dispatch_date) || '—'}</div>
+    <div class="info-item"><strong>Order Ref:</strong> ${esc(order?.internalPO) || '—'}${order?.style ? ` (${esc(order.style)})` : ''}</div>
+    <div class="info-item"><strong>Vehicle No:</strong> ${esc(d.vehicle_number) || '—'}</div>
+    <div class="info-item"><strong>Type:</strong> <span class="badge">${esc(d.dispatch_type || 'order')}</span></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="center" style="width:40px">#</th>
+        <th>Product</th>
+        <th>Colour</th>
+        <th>Size</th>
+        <th class="center" style="width:70px">UOM</th>
+        <th class="right" style="width:70px">Qty</th>
+        <th class="right" style="width:90px">Rate</th>
+        <th class="right" style="width:100px">Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="center">1</td>
+        <td>${esc(d.product_name) || '—'}</td>
+        <td>${esc(d.colour) || '—'}</td>
+        <td>${esc(d.size) || '—'}</td>
+        <td class="center">${esc(d.uom) || '—'}</td>
+        <td class="right">${esc(d.qty)}</td>
+        <td class="right">${rate !== null ? `${esc(currency)} ${rate.toFixed(2)}` : '—'}</td>
+        <td class="right">${value !== null ? `${esc(currency)} ${value.toFixed(2)}` : '—'}</td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="7" style="text-align:right;padding:8px">Total${value !== null ? ` (${esc(currency)})` : ''}</td>
+        <td class="right" style="padding:8px">${value !== null ? value.toFixed(2) : esc(d.qty)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  ${d.remarks ? `<div class="info-row"><div class="info-item"><strong>Remarks:</strong> ${esc(d.remarks)}</div></div>` : ''}
+
+  <div class="signatures">
+    <div class="signature-box">
+      <div class="line">Dispatched By</div>
+    </div>
+    <div class="signature-box">
+      <div class="line">Received By</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    ${esc(company?.name)} · Delivery Challan ${esc(d.challan_number)} · Generated by fabriOS
+  </div>
+
+  <script>window.onload=function(){window.print();}</script>
+</body></html>`);
+    printWindow.document.close();
+  };
+
   const factoryOrderIds = useMemo(() => {
     if (!currentFactoryId) return null;
     const factoryResources = [...appData.printingTables, ...appData.stitchingLines].filter((r: any) => r.factoryId === currentFactoryId).map((r: any) => r.id);
@@ -316,6 +481,9 @@ export default function DispatchPage() {
                     <TableCell className="text-sm py-2">{d.challan_number || '-'}</TableCell>
                     <TableCell className="py-2">
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Print Challan" onClick={() => handlePrintChallan(d)}>
+                          <Printer className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(d)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
