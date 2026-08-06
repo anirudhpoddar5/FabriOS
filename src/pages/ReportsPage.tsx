@@ -721,7 +721,10 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="capacity">
-          <ExportBtns csvHeaders={['Module','Capacity (Tables/Lines)','Active Orders (Demand)','Load %']} csvRows={capacityRows.map(r => [r.module, r.capacity, r.demand, r.load])} csvFile="capacity_vs_demand.csv" pdfTitle="Capacity vs Demand" />
+          <div className="flex items-center gap-2 mb-1">
+            <ExportBtns csvHeaders={['Module','Capacity (Tables/Lines)','Active Orders (Demand)','Load %']} csvRows={capacityRows.map(r => [r.module, r.capacity, r.demand, r.load])} csvFile="capacity_vs_demand.csv" pdfTitle="Capacity vs Demand" />
+            <ExplainerTip text="Load % = active order count ÷ number of tables/lines — a rough headcount ratio, not a measure of actual production throughput, order size, or duration. An order-heavy but low-quantity module can show 'Overloaded' here while running fine in practice." />
+          </div>
           <SummaryCards cards={[
             { label: 'Total Capacity', value: String(capacitySummary.totalCapacity), icon: BarChart3, color: 'bg-blue-600' },
             { label: 'Active Orders', value: String(capacitySummary.totalDemand), icon: Package, color: 'bg-indigo-600' },

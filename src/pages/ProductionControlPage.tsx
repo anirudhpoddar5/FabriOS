@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { AlertTriangle, TrendingUp, Layers } from 'lucide-react';
+import { ExplainerTip } from '@/components/ExplainerTip';
 import { useQuery } from '@tanstack/react-query';
 
 export default function ProductionControlPage() {
@@ -210,6 +211,10 @@ export default function ProductionControlPage() {
         </TabsContent>
 
         <TabsContent value="capacity">
+          <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
+            <span>Load = active order count ÷ tables/lines</span>
+            <ExplainerTip text="This is a rough headcount ratio, not a measure of actual production throughput, order size, or duration. An order-heavy but low-quantity module can show 'Overloaded' here while running fine in practice." />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Printing</CardTitle></CardHeader>
