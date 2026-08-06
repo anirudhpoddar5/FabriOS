@@ -239,6 +239,24 @@ export default function ReportsPage() {
     return Object.values(byMonth).sort((a, b) => a.month.localeCompare(b.month));
   }, [filteredEntries]);
 
+  // Operator productivity: production_entries has no individual-worker/operator identity column — only a
+  // worker_type_id category FK (see worker_types master) — so this groups by worker type, same as the
+  // original 5f51b7c implementation did. Table header says "Worker Type" for honesty even though the tab
+  // itself is titled "Operator Productivity" (matches the original's own labelling).
+  const operatorProductivity = useMemo(() => {
+    const map: Record<string, { workerTypeId: string; name: string; entries: number; totalOutput: number; totalPersons: number; totalCost: number }> = {};
+    filteredEntries.forEach((e: any) => {
+      const wt = data.workerTypes.find((w: any) => w.id === e.workerTypeId);
+      const name = wt?.name || e.workerTypeId?.slice(0, 8) || 'Unknown';
+      if (!map[e.workerTypeId]) map[e.workerTypeId] = { workerTypeId: e.workerTypeId, name, entries: 0, totalOutput: 0, totalPersons: 0, totalCost: 0 };
+      map[e.workerTypeId].entries += 1;
+      map[e.workerTypeId].totalOutput += e.outputQty;
+      map[e.workerTypeId].totalPersons += e.personsUsed || 0;
+      map[e.workerTypeId].totalCost += e.costAmount;
+    });
+    return Object.values(map).sort((a, b) => b.totalOutput - a.totalOutput);
+  }, [filteredEntries, data.workerTypes]);
+
   const profitLossData = useMemo(() => allOrders.map((o: any) => {
     const labourCost = data.entries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + e.costAmount, 0);
     const matIssues = materialIssues.filter((i: any) => i.order_id === o.id);
@@ -288,6 +306,7 @@ export default function ReportsPage() {
     { id: 'buyer-summary', label: 'By Buyer' },
     { id: 'profit-loss', label: 'Profit/Loss' },
     { id: 'monthly-trend', label: 'Monthly Trend' },
+    { id: 'operator-productivity', label: 'Operator Productivity' },
   ];
 
   const ExportBtns = ({ csvHeaders, csvRows, csvFile, pdfTitle, pdfHeaders, pdfRows }: any) => (
@@ -804,6 +823,25 @@ export default function ReportsPage() {
                 </div>,
               ];
             })} emptyMsg="No production data. Log entries to see trends." />
+        </TabsContent>
+
+        <TabsContent value="operator-productivity">
+          <FilterBar />
+          <ExportBtns csvHeaders={['Worker Type','Entries','Total Output','Total Persons','Avg Output/Entry','Total Cost']}
+            csvRows={operatorProductivity.map(r => [r.name, r.entries, r.totalOutput, r.totalPersons, r.entries > 0 ? (r.totalOutput / r.entries).toFixed(1) : '0', r.totalCost.toFixed(2)])}
+            csvFile="operator_productivity.csv" pdfTitle="Operator Productivity Report" />
+          <SummaryCards cards={[
+            { label: 'Worker Types', value: String(operatorProductivity.length), icon: Users, color: 'bg-blue-600' },
+            { label: 'Total Entries', value: String(operatorProductivity.reduce((s, r) => s + r.entries, 0)), icon: ClipboardList, color: 'bg-indigo-600' },
+            { label: 'Total Output', value: operatorProductivity.reduce((s, r) => s + r.totalOutput, 0).toLocaleString(), icon: TrendingUp, color: 'bg-emerald-600' },
+            { label: 'Total Cost', value: `₹${operatorProductivity.reduce((s, r) => s + r.totalCost, 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'bg-amber-600' },
+          ]} />
+          <ReportTable headers={['Worker Type','Entries','Total Output','Total Persons','Avg/Entry','Total Cost']}
+            rows={operatorProductivity.map(r => [
+              r.name, String(r.entries), String(r.totalOutput), String(r.totalPersons),
+              r.entries > 0 ? (r.totalOutput / r.entries).toFixed(1) : '0',
+              `₹${r.totalCost.toFixed(0)}`,
+            ])} emptyMsg="No entry data. Log production entries to see operator productivity." />
         </TabsContent>
       </Tabs>
     </div>
