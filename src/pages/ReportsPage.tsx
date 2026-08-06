@@ -346,7 +346,7 @@ export default function ReportsPage() {
     const rows: any[] = [];
     bomHeadersFull.forEach((bom: any) => {
       (bom.bom_lines || []).forEach((line: any) => {
-        const plannedQty = Number(line.quantity ?? 0) * (1 + (Number(line.extra_pct) || 0) / 100);
+        const plannedQty = Number(line.quantity ?? 0) * (Number(line.avg_consumption) || 1) * (1 + (Number(line.extra_pct) || 0) / 100);
         const consumed = bom.order_id
           ? materialIssues
               .filter((i: any) => i.order_id === bom.order_id && i.item_name === line.item_name)
