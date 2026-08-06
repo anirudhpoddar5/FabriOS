@@ -206,6 +206,22 @@ export default function ReportsPage() {
 
   const dispatchRows = useMemo(() => dispatches.filter((d: any) => (!filters.dateFrom || d.dispatch_date >= filters.dateFrom) && (!filters.dateTo || d.dispatch_date <= filters.dateTo)), [dispatches, filters]);
 
+  // Factory output: same output/cost/entries sums as productionSummary above, bucketed by factory_id
+  // instead of by date. Respects the same filteredEntries (module/date filters) as the Production and
+  // Monthly Trend tabs — factory names come from data.factories via lookup.factory(), already loaded in AppData.
+  const factorySummary = useMemo(() => {
+    const map: Record<string, { name: string; output: number; cost: number; entries: number }> = {};
+    filteredEntries.forEach((e: any) => {
+      const key = e.factoryId || 'unassigned';
+      const name = e.factoryId ? lookup.factory(e.factoryId) : 'Unassigned';
+      if (!map[key]) map[key] = { name, output: 0, cost: 0, entries: 0 };
+      map[key].output += e.outputQty;
+      map[key].cost += e.costAmount;
+      map[key].entries += 1;
+    });
+    return Object.values(map).sort((a, b) => b.output - a.output);
+  }, [filteredEntries, lookup]);
+
   // Monthly trend: same output/cost/entries sums as productionSummary above, bucketed by month (e.date.slice(0,7))
   // instead of by exact date. Respects the same filteredEntries (module/date filters) as the Production tab —
   // the original 5f51b7c version read unfiltered data.entries while still rendering <FilterBar />, which was
@@ -255,6 +271,7 @@ export default function ReportsPage() {
   const tabs = [
     { id: 'order-status', label: 'Order Status' },
     { id: 'production', label: 'Production' },
+    { id: 'factory', label: 'Factory Output' },
     { id: 'delayed', label: 'Delayed' },
     { id: 'dispatch', label: 'Dispatch' },
     { id: 'po-status', label: 'PO Status' },
@@ -523,6 +540,19 @@ export default function ReportsPage() {
           ]} />
           <ReportTable headers={['Date','Entries','Total Output','Total Cost']}
             rows={productionSummary.map(r => [r.date, String(r.entries), String(r.output), `₹${r.cost.toFixed(0)}`])} />
+        </TabsContent>
+
+        <TabsContent value="factory">
+          <FilterBar />
+          <ExportBtns csvHeaders={['Factory','Entries','Output','Cost']} csvRows={factorySummary.map(r => [r.name, r.entries, r.output, r.cost.toFixed(2)])} csvFile="factory_output.csv" pdfTitle="Factory Output Summary" />
+          <SummaryCards cards={[
+            { label: 'Factories', value: String(factorySummary.length), icon: BarChart3, color: 'bg-blue-600' },
+            { label: 'Total Entries', value: String(prodSummary.totalEntries), icon: ClipboardList, color: 'bg-indigo-600' },
+            { label: 'Total Output', value: prodSummary.totalOutput.toLocaleString(), icon: TrendingUp, color: 'bg-emerald-600' },
+            { label: 'Total Cost', value: `₹${prodSummary.totalCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'bg-amber-600' },
+          ]} />
+          <ReportTable headers={['Factory','Entries','Total Output','Total Cost']}
+            rows={factorySummary.map(r => [r.name, String(r.entries), String(r.output), `₹${r.cost.toFixed(0)}`])} emptyMsg="No production data. Log entries to see factory output." />
         </TabsContent>
 
         <TabsContent value="delayed">
