@@ -271,6 +271,7 @@ export default function ReportsPage() {
   const tabs = [
     { id: 'order-status', label: 'Order Status' },
     { id: 'production', label: 'Production' },
+    { id: 'daily', label: 'Daily Detail' },
     { id: 'factory', label: 'Factory Output' },
     { id: 'delayed', label: 'Delayed' },
     { id: 'dispatch', label: 'Dispatch' },
@@ -540,6 +541,18 @@ export default function ReportsPage() {
           ]} />
           <ReportTable headers={['Date','Entries','Total Output','Total Cost']}
             rows={productionSummary.map(r => [r.date, String(r.entries), String(r.output), `₹${r.cost.toFixed(0)}`])} />
+        </TabsContent>
+
+        <TabsContent value="daily">
+          <FilterBar />
+          <ExportBtns csvHeaders={['Date','Module','Order','Colour','Factory','Resource','Persons','Output','Cost']} csvRows={filteredEntries.map((e: any) => [e.date,e.module,lookup.orderPO(e.orderId),lookup.colour(e.colourwayId),lookup.factory(e.factoryId),lookup.resource(e.resourceId),e.personsUsed,e.outputQty,e.costAmount.toFixed(2)])} csvFile="daily_production.csv" pdfTitle="Daily Production Detail" />
+          <SummaryCards cards={[
+            { label: 'Total Entries', value: String(prodSummary.totalEntries), icon: ClipboardList, color: 'bg-blue-600' },
+            { label: 'Total Output', value: prodSummary.totalOutput.toLocaleString(), icon: TrendingUp, color: 'bg-emerald-600' },
+            { label: 'Total Cost', value: `₹${prodSummary.totalCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'bg-amber-600' },
+          ]} />
+          <ReportTable headers={['Date','Module','Order','Colour','Factory','Resource','Persons','Output','Cost']}
+            rows={filteredEntries.map((e: any) => [e.date, e.module, lookup.orderPO(e.orderId), lookup.colour(e.colourwayId), lookup.factory(e.factoryId), lookup.resource(e.resourceId), String(e.personsUsed), String(e.outputQty), `₹${e.costAmount.toFixed(0)}`])} />
         </TabsContent>
 
         <TabsContent value="factory">
