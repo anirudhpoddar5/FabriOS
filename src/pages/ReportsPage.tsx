@@ -206,6 +206,23 @@ export default function ReportsPage() {
 
   const dispatchRows = useMemo(() => dispatches.filter((d: any) => (!filters.dateFrom || d.dispatch_date >= filters.dateFrom) && (!filters.dateTo || d.dispatch_date <= filters.dateTo)), [dispatches, filters]);
 
+  // Monthly trend: same output/cost/entries sums as productionSummary above, bucketed by month (e.date.slice(0,7))
+  // instead of by exact date. Respects the same filteredEntries (module/date filters) as the Production tab —
+  // the original 5f51b7c version read unfiltered data.entries while still rendering <FilterBar />, which was
+  // inconsistent; matching the Production tab's already-fixed convention here instead.
+  const monthlyTrend = useMemo(() => {
+    const byMonth: Record<string, { month: string; output: number; cost: number; entries: number }> = {};
+    filteredEntries.forEach((e: any) => {
+      const month = e.date ? e.date.slice(0, 7) : '';
+      if (!month) return;
+      if (!byMonth[month]) byMonth[month] = { month, output: 0, cost: 0, entries: 0 };
+      byMonth[month].output += e.outputQty;
+      byMonth[month].cost += e.costAmount;
+      byMonth[month].entries += 1;
+    });
+    return Object.values(byMonth).sort((a, b) => a.month.localeCompare(b.month));
+  }, [filteredEntries]);
+
   const profitLossData = useMemo(() => allOrders.map((o: any) => {
     const labourCost = data.entries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + e.costAmount, 0);
     const matIssues = materialIssues.filter((i: any) => i.order_id === o.id);
@@ -251,6 +268,7 @@ export default function ReportsPage() {
     { id: 'vendor-perf', label: 'Vendor Performance' },
     { id: 'buyer-summary', label: 'By Buyer' },
     { id: 'profit-loss', label: 'Profit/Loss' },
+    { id: 'monthly-trend', label: 'Monthly Trend' },
   ];
 
   const ExportBtns = ({ csvHeaders, csvRows, csvFile, pdfTitle, pdfHeaders, pdfRows }: any) => (
@@ -672,6 +690,31 @@ export default function ReportsPage() {
               <span key="m" className={r.margin >= 0 ? 'text-green-600' : 'text-destructive'}>{r.margin >= 0 ? '+' : ''}{r.margin.toFixed(1)}%</span>,
               <Badge key="s" variant="outline" className="text-[9px]">{r.status}</Badge>,
             ])} />
+        </TabsContent>
+
+        <TabsContent value="monthly-trend">
+          <FilterBar />
+          <ExportBtns csvHeaders={['Month','Entries','Total Output','Total Cost']}
+            csvRows={monthlyTrend.map(r => [r.month, r.entries, r.output, r.cost.toFixed(2)])}
+            csvFile="monthly_trend.csv" pdfTitle="Monthly Production Trend" />
+          <SummaryCards cards={[
+            { label: 'Total Entries', value: String(prodSummary.totalEntries), icon: ClipboardList, color: 'bg-blue-600' },
+            { label: 'Total Output', value: prodSummary.totalOutput.toLocaleString(), icon: TrendingUp, color: 'bg-emerald-600' },
+            { label: 'Total Cost', value: `₹${prodSummary.totalCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: DollarSign, color: 'bg-amber-600' },
+            { label: 'Months Covered', value: String(monthlyTrend.length), icon: BarChart3, color: 'bg-purple-600' },
+          ]} />
+          <ReportTable headers={['Month','Entries','Total Output','Total Cost','Visual']}
+            rows={monthlyTrend.map(r => {
+              const maxOut = Math.max(...monthlyTrend.map(m => m.output), 1);
+              const barW = (r.output / maxOut) * 100;
+              return [
+                r.month, String(r.entries), String(r.output), `₹${r.cost.toFixed(0)}`,
+                <div key="b" className="flex items-center gap-1">
+                  <div className="h-2 bg-primary rounded" style={{ width: `${Math.max(barW, 2)}%`, minWidth: 4 }} />
+                  <span className="text-[9px] text-muted-foreground">{barW.toFixed(0)}%</span>
+                </div>,
+              ];
+            })} emptyMsg="No production data. Log entries to see trends." />
         </TabsContent>
       </Tabs>
     </div>
