@@ -16,8 +16,12 @@ export default defineConfig({
       testMatch: /auth\.setup\.ts/,
     },
     {
+      // qa-full.spec.ts is excluded here (see the dedicated 'qa-full' project below) — its
+      // final test bulk-deletes every row scoped to the shared demo company's company_id.
+      // Running it in the same worker pool as the seed-heavy specs in this project is a real
+      // hazard: it can delete rows another spec just seeded, depending on execution order.
       name: 'chromium',
-      testIgnore: /auth\.setup\.ts|steelman-e2e\.spec\.ts|steelman-full\.spec\.ts/,
+      testIgnore: /auth\.setup\.ts|qa-full\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.auth/user.json',
@@ -25,23 +29,19 @@ export default defineConfig({
       dependencies: ['setup'],
     },
     {
-      name: 'steelman',
-      testMatch: /steelman-e2e\.spec\.ts/,
+      // Isolated on purpose: this file's own final test wipes 22 tables for the current
+      // company_id. Not included in the default `chromium` run — invoke explicitly with
+      // `npx playwright test --project=qa-full` only when you intend that cleanup to happen,
+      // and never in the same invocation as other specs relying on live seeded data.
+      name: 'qa-full',
+      testMatch: /qa-full\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
-        headless: false,
+        storageState: 'playwright/.auth/user.json',
       },
-      dependencies: [],
-    },
-    {
-      name: 'steelman-full',
-      testMatch: /steelman-full\.spec\.ts/,
-      use: {
-        ...devices['Desktop Chrome'],
-        headless: true,
-      },
-      dependencies: [],
-      timeout: 600000,
+      dependencies: ['setup'],
+      fullyParallel: false,
+      workers: 1,
     },
   ],
 
