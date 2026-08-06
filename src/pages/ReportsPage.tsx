@@ -243,6 +243,7 @@ export default function ReportsPage() {
     { id: 'po-status', label: 'PO Status' },
     { id: 'pending-purchase', label: 'Pending Purchase' },
     { id: 'grn-pending', label: 'GRN Pending' },
+    { id: 'bill-tracking', label: 'Bill Tracking' },
     { id: 'stock', label: 'Stock On Hand' },
     { id: 'inward-outward', label: 'Inward/Outward' },
     { id: 'consumption', label: 'Consumption vs BOM' },
@@ -327,6 +328,21 @@ export default function ReportsPage() {
     pendingQty: grnPendingData.reduce((s: number, r: any) => s + r.pending, 0),
     pos: new Set(grnPendingData.map((r: any) => r.poNumber)).size,
   }), [grnPendingData]);
+
+  // Bill tracking: PO amount vs invoice amount raised against it (purchase_orders.invoice_number/invoice_amount/payment_status,
+  // same columns already displayed read-only on the po-status/pending-purchase tabs and PODetailPage — no page currently writes
+  // them, so most POs will show invoice fields blank/pending, matching those already-restored tabs).
+  const billTrackingData = useMemo(() => pos.map((p: any) => ({
+    poNumber: p.po_number, vendor: (p as any).vendors?.name || '-', poDate: p.po_date,
+    totalAmount: Number(p.total_amount) || 0, invoiceNumber: p.invoice_number || '-',
+    invoiceDate: p.invoice_date || '-', invoiceAmount: Number(p.invoice_amount) || 0,
+    paymentStatus: p.payment_status || 'pending',
+    pendingValue: (Number(p.total_amount) || 0) - (Number(p.invoice_amount) || 0),
+  })), [pos]);
+  const billTrackingSummary = useMemo(() => ({
+    count: billTrackingData.length,
+    pendingValue: billTrackingData.reduce((s: number, r: any) => s + Math.max(r.pendingValue, 0), 0),
+  }), [billTrackingData]);
 
   const stockSummary = useMemo(() => {
     const totalItems = invItems.length;
@@ -543,6 +559,18 @@ export default function ReportsPage() {
           ]} />
           <ReportTable headers={['PO#','Vendor','Item','UOM','Ordered','Received','Pending','PO Date','Status']}
             rows={grnPendingData.map((r: any) => [r.poNumber, r.vendor, r.item, r.uom, String(r.ordered), String(r.received), <span key="p" className="text-destructive font-medium">{r.pending}</span>, r.poDate, <Badge key="s" variant="outline" className="text-[9px]">{r.poStatus}</Badge>])} emptyMsg="No pending GRN items" />
+        </TabsContent>
+
+        <TabsContent value="bill-tracking">
+          <ExportBtns csvHeaders={['PO#','Vendor','PO Date','PO Amount','Invoice#','Inv Date','Inv Amount','Pending Value','Payment Status']} csvRows={billTrackingData.map(r => [r.poNumber,r.vendor,r.poDate,r.totalAmount,r.invoiceNumber,r.invoiceDate,r.invoiceAmount,r.pendingValue.toFixed(2),r.paymentStatus])} csvFile="bill_tracking.csv" pdfTitle="Bill Tracking Report" />
+          <SummaryCards cards={[
+            { label: 'POs Tracked', value: String(billTrackingSummary.count), icon: ShoppingCart, color: 'bg-blue-600' },
+            { label: 'Pending Bill Value', value: `₹${billTrackingSummary.pendingValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: DollarSign, color: billTrackingSummary.pendingValue > 0 ? 'bg-red-600' : 'bg-emerald-600' },
+          ]} />
+          <ReportTable headers={['PO#','Vendor','PO Date','PO Amount','Invoice#','Inv Date','Inv Amount','Pending','Payment']}
+            rows={billTrackingData.map(r => [r.poNumber, r.vendor, r.poDate, `₹${r.totalAmount}`, r.invoiceNumber, r.invoiceDate, `₹${r.invoiceAmount}`,
+              <span key="pv" className={r.pendingValue > 0 ? 'text-destructive font-medium' : ''}>{r.pendingValue > 0 ? `₹${r.pendingValue.toFixed(0)}` : '—'}</span>,
+              <Badge key="ps" variant="outline" className="text-[9px]">{r.paymentStatus}</Badge>])} emptyMsg="No purchase orders to track" />
         </TabsContent>
 
         <TabsContent value="stock">
