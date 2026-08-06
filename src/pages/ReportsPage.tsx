@@ -246,6 +246,7 @@ export default function ReportsPage() {
     { id: 'stock', label: 'Stock On Hand' },
     { id: 'inward-outward', label: 'Inward/Outward' },
     { id: 'consumption', label: 'Consumption vs BOM' },
+    { id: 'vendor-perf', label: 'Vendor Performance' },
     { id: 'profit-loss', label: 'Profit/Loss' },
   ];
 
@@ -373,6 +374,23 @@ export default function ReportsPage() {
     consumed: consumptionData.reduce((s: number, r: any) => s + r.consumed, 0),
     overCount: consumptionData.filter((r: any) => r.variance > 0).length,
   }), [consumptionData]);
+
+  // Vendor performance: PO count / total ordered / received / pending value per vendor.
+  // Same 'received'|'closed'|'cancelled' status vocabulary as pendingPurchase above — no on-time/delay
+  // calc exists anywhere else in the codebase (checked VendorsPage/PurchaseOrdersPage/GRNPage) to cross-check against,
+  // so this matches the original 5f51b7c formula as-is rather than inventing a new one.
+  const vendorPerfData = useMemo(() => {
+    const vendorMap: Record<string, { name: string; poCount: number; totalOrdered: number; totalReceived: number; pendingValue: number }> = {};
+    pos.forEach((p: any) => {
+      const vName = (p as any).vendors?.name || 'Unknown';
+      if (!vendorMap[vName]) vendorMap[vName] = { name: vName, poCount: 0, totalOrdered: 0, totalReceived: 0, pendingValue: 0 };
+      vendorMap[vName].poCount += 1;
+      vendorMap[vName].totalOrdered += Number(p.total_amount) || 0;
+      if (p.status === 'received' || p.status === 'closed') vendorMap[vName].totalReceived += Number(p.total_amount) || 0;
+      if (p.status !== 'received' && p.status !== 'closed' && p.status !== 'cancelled') vendorMap[vName].pendingValue += Number(p.total_amount) || 0;
+    });
+    return Object.values(vendorMap);
+  }, [pos]);
 
   const profitSummary = useMemo(() => {
     const totalRevenue = profitLossData.reduce((s: number, r: any) => s + r.revenue, 0);
@@ -542,6 +560,13 @@ export default function ReportsPage() {
               <span key="v" className={r.variance > 0 ? 'text-destructive font-medium' : 'text-green-600'}>{r.variance > 0 ? '+' : ''}{r.variance.toFixed(2)}</span>,
               r.uom,
             ])} emptyMsg="No BOM data. Create BOMs and record material issues to see consumption variance." />
+        </TabsContent>
+
+        <TabsContent value="vendor-perf">
+          <ExportBtns csvHeaders={['Vendor','PO Count','Total Ordered','Total Received','Pending Value']} csvRows={vendorPerfData.map(r => [r.name,r.poCount,r.totalOrdered.toFixed(2),r.totalReceived.toFixed(2),r.pendingValue.toFixed(2)])} csvFile="vendor_performance.csv" pdfTitle="Vendor Delivery Performance" />
+          <ReportTable headers={['Vendor','PO Count','Total Ordered','Received Value','Pending Value']}
+            rows={vendorPerfData.map(r => [r.name, String(r.poCount), `₹${r.totalOrdered.toFixed(0)}`, `₹${r.totalReceived.toFixed(0)}`,
+              <span key="pv" className={r.pendingValue > 0 ? 'text-destructive font-medium' : 'text-green-600 font-medium'}>{r.pendingValue > 0 ? `₹${r.pendingValue.toFixed(0)}` : 'Clear'}</span>])} emptyMsg="No vendor data" />
         </TabsContent>
 
         <TabsContent value="profit-loss">
