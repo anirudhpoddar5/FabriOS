@@ -31,6 +31,9 @@ dist-ssr
 playwright/.auth/
 test-results/
 
+# Supabase CLI local cache
+supabase/.temp/
+
 # Test artifacts
 dashboard-preview.png
 .superpowers/

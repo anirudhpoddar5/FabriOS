@@ -1,4 +1,4 @@
-# FabriOS — Claude Code Notes
+# FabriOS — Codex Notes
 
 ## 1. PROJECT OVERVIEW
 
