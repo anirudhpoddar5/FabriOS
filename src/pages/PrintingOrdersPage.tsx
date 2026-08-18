@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { DatePickerField } from '@/components/DatePickerField';
 import { ExplainerTip } from '@/components/ExplainerTip';
 import { getOrderBadge } from '@/lib/order-status';
-import { friendlyOrderDeleteError } from '@/lib/order-delete';
+import { friendlyOrderDeleteError } from '@/lib/delete-errors';
 import { summariseOrderRows, EMPTY_ORDER_SUMMARY } from '@/lib/order-summary';
 import { printDetailPage } from '@/lib/pdf-export';
 import { useFormDraft } from '@/hooks/use-form-draft';

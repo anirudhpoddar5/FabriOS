@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { summariseOrderRows } from './order-summary';
-import { friendlyOrderDeleteError } from './order-delete';
+import { friendlyOrderDeleteError } from './delete-errors';
 
 const getProduct = (id: string) => ({ p1: 'Amaltas Tee', p2: 'Gulzar Kurta' }[id] || '');
 const getFabric = (id: string) => ({ f1: 'Cotton 120', f2: 'Rayon' }[id] || '');

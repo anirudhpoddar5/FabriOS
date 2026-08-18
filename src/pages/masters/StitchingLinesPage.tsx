@@ -88,6 +88,7 @@ export default function StitchingLinesPage() {
       <MasterCRUD
         title="Stitching Line"
         dataKey="stitchingLines"
+        groupBy="factoryId"
         columns={[
           { key: 'factoryId', header: 'Factory', render: item => getFactory((item as any).factoryId) },
           { key: 'code', header: 'Code' },

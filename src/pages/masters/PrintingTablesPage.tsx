@@ -88,6 +88,7 @@ export default function PrintingTablesPage() {
       <MasterCRUD
         title="Printing Table"
         dataKey="printingTables"
+        groupBy="factoryId"
         columns={[
           { key: 'factoryId', header: 'Factory', render: item => getFactory((item as any).factoryId) },
           { key: 'code', header: 'Code' },

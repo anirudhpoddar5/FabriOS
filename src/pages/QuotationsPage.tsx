@@ -190,13 +190,15 @@ export default function QuotationsPage() {
       const { error } = await updateItem('quotations', editingId, payload);
       if (error) { toast.error(error); return; }
 
-      // Replace lines: delete old, insert new
-      const { error: delErr } = await supabase.from('quotation_lines').delete().eq('quotation_id', editingId);
-      if (delErr) { toast.error(delErr.message); return; }
-      for (let i = 0; i < lines.length; i++) {
-        const l = lines[i];
-        if (!l.description) continue;
-        const { error: lErr } = await supabase.from('quotation_lines').insert({
+      // Replace lines the safe way: insert the new set (fresh ids, one batch
+      // insert) FIRST, and only delete the old rows once every new one is in.
+      // If the insert fails partway, the ORIGINAL lines are still there —
+      // nothing is lost. The old code deleted first and inserted in a loop,
+      // so a failed insert left the quotation with no lines at all.
+      const newRows = lines
+        .filter((l: any) => l.description)
+        .map((l: any, i: number) => ({
+          id: crypto.randomUUID(),
           quotation_id: editingId,
           product_id: l.productId || null,
           description: l.description,
@@ -204,10 +206,24 @@ export default function QuotationsPage() {
           uom: l.uom || 'pcs',
           rate: Number(l.rate) || 0,
           sort_order: i,
-        });
-        if (lErr) { toast.error(lErr.message); return; }
+        }));
+      if (newRows.length > 0) {
+        const { error: insErr } = await supabase.from('quotation_lines').insert(newRows);
+        if (insErr) { toast.error(`Line items were not saved — your original items are untouched: ${insErr.message}`); return; }
+      }
+      // Delete by quotation_id, excluding the rows just inserted. Deleting by cached
+      // ids would miss any row the local cache does not know about (this page never
+      // refreshes appData after a save), silently leaving duplicates behind.
+      const keepIds = newRows.map(r => r.id);
+      const delQuery = supabase.from('quotation_lines').delete().eq('quotation_id', editingId);
+      const { error: delErr } = keepIds.length > 0
+        ? await delQuery.not('id', 'in', `(${keepIds.join(',')})`)
+        : await delQuery;
+      if (delErr) {
+        toast.error(`Saved, but the old line items could not be removed — you may see duplicates. Refresh and remove them manually: ${delErr.message}`);
       }
       qc.invalidateQueries({ queryKey: ['quotations'] });
+      await refreshData();
       toast.success('Quotation updated');
     } else {
       if (!companyId) { toast.error('Company details are missing. Please sign in again.'); return; }
@@ -270,42 +286,70 @@ export default function QuotationsPage() {
   const convertToOrder = async (q: any) => {
     setConvertingId(q.id);
     try {
-      const qLines = quotationLines.filter((l: any) => l.quotationId === q.id);
-      const module = q.buyerId ? (appData.buyers.find((b: any) => b.id === q.buyerId) ? 'printing' : 'printing') : 'printing';
-
-      const { data: newOrder, error: oErr } = await supabase.from('order_headers').insert({
-        company_id: companyId,
-        module,
-        internal_po: `PO-${q.quotationNumber}`,
-        buyer_id: q.buyerId || null,
-        currency: q.currency,
-        status: 'Started',
-        quotation_id: q.id,
-      }).select('id').single();
-      if (oErr) { toast.error(oErr.message); return; }
-
-      for (let i = 0; i < qLines.length; i++) {
-        const l = qLines[i];
-        if (!l.description) continue;
-        const { error: rErr } = await supabase.from('order_rows').insert({
-          order_id: newOrder.id,
+      const qLines = quotationLines.filter((l: any) => l.quotationId === q.id && l.description);
+      // Quotations have no module field of their own — conversion has always targeted printing.
+      const payload = {
+        module: 'printing',
+        header: {
+          buyer_id: q.buyerId || null,
+          currency: q.currency,
+          status: 'Started',
+          internal_po: `PO-${q.quotationNumber}`,
+        },
+        rows: qLines.map((l: any, i: number) => ({
+          id: crypto.randomUUID(),
           product_id: l.productId || null,
-          uom: l.uom,
-          order_qty: l.qty,
-          rate_per_item: l.rate,
+          uom: l.uom || 'pcs',
+          order_qty: Number(l.qty) || 0,
+          // chart qty is a separate production figure, not the ordered qty —
+          // leave it 0 (as a manually created order does) rather than invent it
+          chart_qty: 0,
+          rate_per_item: Number(l.rate) || 0,
+          no_of_colours: 1,
           sort_order: i,
-        });
-        if (rErr) { toast.error(rErr.message); return; }
-      }
+          // A quotation line has no colour breakdown — emit one default
+          // colourway carrying the row's full qty, otherwise the order is
+          // saved with zero colourways and progress tracking stays at 0%.
+          colourways: [{
+            id: crypto.randomUUID(),
+            colour_name: 'Default',
+            ordered_qty: Number(l.qty) || 0,
+            uom: l.uom || 'pcs',
+            size: null,
+            notes: null,
+            sort_order: 0,
+          }],
+        })),
+      };
 
-      await updateItem('quotations', q.id, { status: 'accepted' } as any);
+      const { data: newOrderId, error: oErr } = await supabase.rpc('save_order_with_rows_and_colourways', { payload });
+      if (oErr) { toast.error(`Order was not created: ${oErr.message}`); return; }
+
+      // The RPC's payload contract has no field for order_headers.quotation_id
+      // (it isn't part of save_order_with_rows_and_colourways), so patch that
+      // single column directly — this is a single-table, single-row update,
+      // not a re-introduction of the sequential multi-table insert pattern.
+      const { error: linkErr } = await supabase.from('order_headers').update({ quotation_id: q.id }).eq('id', newOrderId as string);
+      if (linkErr) toast.warning('Order created, but it could not be linked back to this quotation.');
+
+      const { error: sErr } = await updateItem('quotations', q.id, { status: 'accepted' } as any);
       qc.invalidateQueries({ queryKey: ['order_headers'] });
+      await refreshData();
+      if (sErr) {
+        // don't also claim success and navigate away — this warning is the one
+        // that stops them converting the same quotation a second time
+        toast.error(`Order was created, but the quotation could not be marked accepted (${sErr}) — do not convert it again.`);
+        return;
+      }
       toast.success('Order created from quotation');
-      navigate(`/printing-orders/${newOrder.id}`);
+      navigate(`/printing-orders/${newOrderId}`);
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      // must be finally — the early returns above would otherwise leave the
+      // Convert button stuck disabled for the rest of the session
+      setConvertingId(null);
     }
-    setConvertingId(null);
   };
 
   const toggleSelect = (id: string) => {

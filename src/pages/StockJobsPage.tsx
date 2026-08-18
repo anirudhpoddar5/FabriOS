@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Plus, Search, Pencil, FileDown, Trash2, Printer, CheckSquare, X } from 'lucide-react';
 import { printDetailPage } from '@/lib/pdf-export';
+import { friendlyDeleteError } from '@/lib/delete-errors';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePagination } from '@/hooks/use-pagination';
@@ -99,13 +100,20 @@ export default function StockJobsPage() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} job(s)?`)) return;
     try {
+      let deleted = 0;
       for (const id of selectedIds) {
         const { error } = await supabase.from('stock_jobs').delete().eq('id', id);
-        if (error) { toast.error(`Delete failed: ${error.message}`); return; }
+        if (error) {
+          toast.error(friendlyDeleteError(error.message, jobs.find((j: any) => j.id === id)?.job_number || 'This job', 'cancel it instead'));
+          break;
+        }
+        deleted++;
       }
-      qc.invalidateQueries({ queryKey: ['stock_jobs'] });
-      setSelectedIds(new Set());
-      toast.success(`${selectedIds.size} job(s) deleted`);
+      if (deleted > 0) {
+        qc.invalidateQueries({ queryKey: ['stock_jobs'] });
+        setSelectedIds(new Set());
+        toast.success(`${deleted} job(s) deleted`);
+      }
     } catch (err: any) { toast.error(`Delete failed: ${err.message}`); }
   };
 

@@ -36,7 +36,7 @@ function getPreviousWorkingDay(dateStr: string, workingDays: number[]): string {
 
 function countWorkingDays(fromInc: string, toInc: string, workingDays: number[]): number {
   let count = 0;
-  let d = new Date(fromInc);
+  const d = new Date(fromInc);
   const end = new Date(toInc);
   while (d <= end) {
     if (workingDays.includes(d.getDay())) {
@@ -58,6 +58,7 @@ export function getOrderDelay(
   entries: { orderId: string; outputQty: number; date: string }[],
   now: Date,
   workingDays: number[],
+  orderRows: { orderId: string; orderQty: number }[] = [],
 ): OrderDelayResult {
   const today = now.toISOString().slice(0, 10);
   const currentHour = now.getHours();
@@ -79,7 +80,12 @@ export function getOrderDelay(
   const colourwayQty = colourways
     .filter(c => c.orderId === order.id)
     .reduce((s, c) => s + (c.orderedQty || 0), 0);
-  const orderedQty = colourwayQty > 0 ? colourwayQty : (order as any).orderQty || 0;
+  // order_headers carries no orderQty field — an order saved with colourless rows
+  // (no colour_name entered) has zero colourways, so fall back to order_rows.
+  const rowQty = orderRows
+    .filter(r => r.orderId === order.id)
+    .reduce((s, r) => s + (r.orderQty || 0), 0);
+  const orderedQty = colourwayQty > 0 ? colourwayQty : rowQty;
 
   const producedQty = entries
     .filter(e => e.orderId === order.id)

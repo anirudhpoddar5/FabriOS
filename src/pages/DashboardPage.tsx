@@ -204,7 +204,12 @@ function DashboardContent() {
     let totalOrdered = 0, totalProduced = 0;
     allStarted.forEach((o: any) => {
       const cws = allCws.filter((c: any) => c.orderId === o.id);
-      totalOrdered += cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0);
+      // an order saved without colour names has no colourways — fall back to its
+      // order_rows qty, or it silently contributes 0 to the WIP totals
+      const cwQty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0);
+      totalOrdered += cwQty > 0
+        ? cwQty
+        : (data.orderRows || []).filter((r: any) => r.orderId === o.id).reduce((s: number, r: any) => s + (r.orderQty || 0), 0);
       totalProduced += filteredEntries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + e.outputQty, 0);
     });
 
@@ -233,7 +238,7 @@ function DashboardContent() {
       overdueTotal,
       activeSubcontract,
     };
-  }, [filteredEntries, printingOrders, stitchingOrders, data.printingOrders, data.stitchingOrders, today, currentModule, stockJobs, pos, invItems, dispatches, showP, showS, data.printingColourways, data.stitchingColourways, data.invoices, data.subcontractJobs]);
+  }, [filteredEntries, printingOrders, stitchingOrders, data.printingOrders, data.stitchingOrders, today, currentModule, stockJobs, pos, invItems, dispatches, showP, showS, data.printingColourways, data.stitchingColourways, data.invoices, data.subcontractJobs, data.orderRows]);
 
   const overallPct = stats.totalOrdered > 0 ? (stats.totalProduced / stats.totalOrdered) * 100 : 0;
 
@@ -351,7 +356,10 @@ function DashboardContent() {
               <div className="space-y-2">
                 {stats.allStarted.slice(0, 5).map((o: any) => {
                   const cws = [...data.printingColourways, ...data.stitchingColourways].filter((c: any) => c.orderId === o.id);
-                  const orderQty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0) || o.orderQty || 0;
+                  // order_headers has no orderQty field — colourless-row orders have zero
+                  // colourways, so fall back to the order's order_rows quantity.
+                  const orderQty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0)
+                    || (data.orderRows || []).filter((r: any) => r.orderId === o.id).reduce((s: number, r: any) => s + (r.orderQty || 0), 0);
                   const produced = filteredEntries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + e.outputQty, 0);
                   const pct = orderQty > 0 ? Math.min((produced / orderQty) * 100, 100) : 0;
                   const delayed = o.targetEndDate && o.targetEndDate < today;
@@ -485,7 +493,7 @@ function DashboardContent() {
 
         const orderHealthMap = new Map<string, ReturnType<typeof getOrderHealth>>();
         for (const o of allActiveOrders) {
-          const health = getOrderHealth(o, allCws, filteredEntries, today);
+          const health = getOrderHealth(o, allCws, filteredEntries, today, allOrderRows);
           orderHealthMap.set(o.id, health);
         }
 
@@ -599,13 +607,17 @@ function DashboardContent() {
         ].filter((o: any) => o.status === 'Started');
         const allCws = [...data.printingColourways, ...data.stitchingColourways];
         const allEntries = data.entries;
+        const allOrderRows = data.orderRows || [];
 
         const now = new Date();
         const delayExceptions = allActiveOrders
           .map((o: any) => {
-            const result = getOrderDelay(o, allCws, allEntries, now, workingDays);
+            const result = getOrderDelay(o, allCws, allEntries, now, workingDays, allOrderRows);
             const cws = allCws.filter((c: any) => c.orderId === o.id);
-            const orderedQty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0) || o.orderQty || 0;
+            // order_headers has no orderQty field — colourless-row orders have zero
+            // colourways, so fall back to the order's order_rows quantity.
+            const orderedQty = cws.reduce((s: number, c: any) => s + (c.orderedQty || 0), 0)
+              || allOrderRows.filter((r: any) => r.orderId === o.id).reduce((s: number, r: any) => s + (r.orderQty || 0), 0);
             const producedQty = allEntries.filter((e: any) => e.orderId === o.id).reduce((s: number, e: any) => s + (e.outputQty || 0), 0);
             return { order: o, orderedQty, producedQty, ...result };
           })

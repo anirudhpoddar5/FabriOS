@@ -125,22 +125,36 @@ describe('getOrderHealth', () => {
     expect(result.dueDate).toBe('2026-07-15');
   });
 
-  it('uses orderQty fallback when no colourways', () => {
+  it('falls back to order_rows quantity when no colourways (colourless save)', () => {
+    // order_headers has no orderQty column — a colourless-row order has zero
+    // colourways, so the only real source of quantity is order_rows.
     const result = getOrderHealth(
-      makeOrder({ orderQty: 200, createdAt: '2026-07-01' }),
+      makeOrder({ createdAt: '2026-07-01' }),
       [],
       [{ orderId: 'order-1', outputQty: 50 }],
       today,
+      [{ orderId: 'order-1', orderQty: 200 }],
     );
     expect(result.orderedQty).toBe(200);
   });
 
-  it('uses colourway sum over orderQty when colourways exist', () => {
+  it('has zero ordered qty, not a phantom order.orderQty, when neither colourways nor order_rows are given', () => {
     const result = getOrderHealth(
-      makeOrder({ orderQty: 200, createdAt: '2026-07-01' }),
+      makeOrder({ createdAt: '2026-07-01' }),
+      [],
+      [{ orderId: 'order-1', outputQty: 50 }],
+      today,
+    );
+    expect(result.orderedQty).toBe(0);
+  });
+
+  it('uses colourway sum over order_rows when colourways exist', () => {
+    const result = getOrderHealth(
+      makeOrder({ createdAt: '2026-07-01' }),
       [{ orderId: 'order-1', orderedQty: 150 }],
       [{ orderId: 'order-1', outputQty: 50 }],
       today,
+      [{ orderId: 'order-1', orderQty: 200 }],
     );
     expect(result.orderedQty).toBe(150);
   });

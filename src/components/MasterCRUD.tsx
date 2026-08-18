@@ -1,14 +1,15 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, Fragment } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Search } from 'lucide-react';
+import { Plus, Pencil, Search, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useData, generateId } from '@/context/DataContext';
 import { AppData } from '@/types';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { SortState, sortAndGroupRows, groupConsecutive } from '@/lib/master-sort';
 
 export interface ColumnDef<T> {
   key: string;
@@ -24,12 +25,15 @@ interface MasterCRUDProps<K extends keyof AppData> {
   renderForm: (item: AppData[K][number] | null, onChange: (field: string, value: any) => void, formData: Record<string, any>) => React.ReactNode;
   defaultValues: () => Record<string, any>;
   validate?: (formData: Record<string, any>) => string | null;
+  /** Column key to group rows under a sub-heading (e.g. factory) — count shown per group. Opt-in. */
+  groupBy?: string;
 }
 
-export function MasterCRUD<K extends keyof AppData>({ title, dataKey, columns, renderForm, defaultValues, validate }: MasterCRUDProps<K>) {
+export function MasterCRUD<K extends keyof AppData>({ title, dataKey, columns, renderForm, defaultValues, validate, groupBy }: MasterCRUDProps<K>) {
   const { data, addItem, updateItem } = useData();
   const items = data[dataKey] as any[];
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<SortState | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -45,6 +49,13 @@ export function MasterCRUD<K extends keyof AppData>({ title, dataKey, columns, r
       Object.values(item).some(v => String(v).toLowerCase().includes(s))
     );
   }, [items, search]);
+
+  const sortedRows = useMemo(() => sortAndGroupRows(filtered, columns, sort, groupBy), [filtered, columns, sort, groupBy]);
+  const groups = useMemo(() => groupBy ? groupConsecutive(sortedRows, columns, groupBy) : null, [sortedRows, columns, groupBy]);
+
+  const handleSort = (index: number) => {
+    setSort(prev => prev?.index === index ? { index, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { index, direction: 'asc' });
+  };
 
   const handleAdd = () => {
     setEditingId(null);
@@ -104,6 +115,27 @@ export function MasterCRUD<K extends keyof AppData>({ title, dataKey, columns, r
     toast.success(`${item.active ? 'Deactivated' : 'Activated'}`);
   };
 
+  const renderRow = (item: any) => (
+    <TableRow key={item.id}>
+      {columns.map((col, i) => (
+        <TableCell key={col.key ?? i} className="text-sm py-2">
+          {col.render ? col.render(item) : col.accessor ? col.accessor(item) : item[col.key]}
+        </TableCell>
+      ))}
+      <TableCell className="py-2">
+        <div className="flex items-center gap-2">
+          <Switch checked={item.active} onCheckedChange={() => handleToggleActive(item)} className="scale-75" />
+          <Badge variant={item.active ? 'default' : 'secondary'} className="text-[10px]">{item.active ? 'Active' : 'Inactive'}</Badge>
+        </div>
+      </TableCell>
+      <TableCell className="py-2">
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(item)}>
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -121,34 +153,46 @@ export function MasterCRUD<K extends keyof AppData>({ title, dataKey, columns, r
         <Table>
           <TableHeader>
             <TableRow>
-              {columns.map(col => <TableHead key={col.key} className="text-xs h-9">{col.header}</TableHead>)}
+              {columns.map((col, i) => (
+                <TableHead
+                  key={col.key ?? i}
+                  className="text-xs h-9 cursor-pointer select-none"
+                  onClick={() => handleSort(i)}
+                  aria-sort={sort?.index === i ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort(i); } }}
+                    className="inline-flex items-center gap-1 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
+                  >
+                    {col.header}
+                    {sort?.index === i
+                      ? (sort.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)
+                      : <ArrowUpDown className="h-3 w-3 text-muted-foreground/40" />}
+                  </span>
+                </TableHead>
+              ))}
               <TableHead className="text-xs h-9 w-[100px]">Status</TableHead>
               <TableHead className="text-xs h-9 w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {sortedRows.length === 0 ? (
               <TableRow><TableCell colSpan={columns.length + 2} className="text-center text-sm text-muted-foreground py-8">No records found</TableCell></TableRow>
-            ) : filtered.map((item: any) => (
-              <TableRow key={item.id}>
-                {columns.map(col => (
-                  <TableCell key={col.key} className="text-sm py-2">
-                    {col.render ? col.render(item) : col.accessor ? col.accessor(item) : item[col.key]}
-                  </TableCell>
-                ))}
-                <TableCell className="py-2">
-                  <div className="flex items-center gap-2">
-                    <Switch checked={item.active} onCheckedChange={() => handleToggleActive(item)} className="scale-75" />
-                    <Badge variant={item.active ? 'default' : 'secondary'} className="text-[10px]">{item.active ? 'Active' : 'Inactive'}</Badge>
-                  </div>
-                </TableCell>
-                <TableCell className="py-2">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(item)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            ) : groups ? (
+              groups.map((group, gi) => (
+                <Fragment key={gi}>
+                  <TableRow className="bg-muted/30">
+                    <TableCell colSpan={columns.length + 2} className="text-[11px] font-semibold py-1.5 px-3">
+                      {group.label}
+                      <span className="text-muted-foreground font-normal ml-2">({group.items.length} {group.items.length === 1 ? 'record' : 'records'})</span>
+                    </TableCell>
+                  </TableRow>
+                  {group.items.map((item: any) => renderRow(item))}
+                </Fragment>
+              ))
+            ) : sortedRows.map((item: any) => renderRow(item))}
           </TableBody>
         </Table>
       </div>

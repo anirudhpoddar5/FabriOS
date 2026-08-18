@@ -17,6 +17,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { printDetailPage } from '@/lib/pdf-export';
+import { friendlyDeleteError } from '@/lib/delete-errors';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -173,15 +174,22 @@ export default function PurchaseOrdersPage() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} PO(s)?`)) return;
     try {
+      // Deleting the header cascades to purchase_order_lines in one statement,
+      // so a blocked delete leaves the PO fully intact instead of half-gutted.
+      let deleted = 0;
       for (const id of selectedIds) {
-        const { error: lineErr } = await supabase.from('purchase_order_lines').delete().eq('po_id', id);
-        if (lineErr) { toast.error(`Delete failed: ${lineErr.message}`); return; }
-        const { error: poErr } = await supabase.from('purchase_orders').delete().eq('id', id);
-        if (poErr) { toast.error(`Delete failed: ${poErr.message}`); return; }
+        const { error } = await supabase.from('purchase_orders').delete().eq('id', id);
+        if (error) {
+          toast.error(friendlyDeleteError(error.message, pos.find((p: any) => p.id === id)?.po_number || 'This PO', 'cancel it instead'));
+          break;
+        }
+        deleted++;
       }
-      qc.invalidateQueries({ queryKey: ['purchase_orders'] });
-      setSelectedIds(new Set());
-      toast.success(`${selectedIds.size} PO(s) deleted`);
+      if (deleted > 0) {
+        qc.invalidateQueries({ queryKey: ['purchase_orders'] });
+        setSelectedIds(new Set());
+        toast.success(`${deleted} PO(s) deleted`);
+      }
     } catch (err: any) { toast.error(`Delete failed: ${err.message}`); }
   };
 

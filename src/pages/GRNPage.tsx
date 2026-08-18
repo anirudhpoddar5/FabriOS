@@ -16,6 +16,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { printDetailPage } from '@/lib/pdf-export';
+import { friendlyDeleteError } from '@/lib/delete-errors';
 
 const GRN_STATUS_COLORS: Record<string, string> = {
   accepted: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -282,15 +283,23 @@ export default function GRNPage() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} GRN(s)?`)) return;
     try {
+      // Deleting the header cascades to grn_lines in one statement, so a blocked
+      // delete (e.g. stock_transactions referencing an accepted GRN) leaves the
+      // GRN fully intact instead of gutting the lines and orphaning the header.
+      let deleted = 0;
       for (const id of selectedIds) {
-        const { error: lineErr } = await supabase.from('grn_lines').delete().eq('grn_id', id);
-        if (lineErr) { toast.error(`Delete failed: ${lineErr.message}`); return; }
-        const { error: grnErr } = await supabase.from('grn_headers').delete().eq('id', id);
-        if (grnErr) { toast.error(`Delete failed: ${grnErr.message}`); return; }
+        const { error } = await supabase.from('grn_headers').delete().eq('id', id);
+        if (error) {
+          toast.error(friendlyDeleteError(error.message, grns.find((g: any) => g.id === id)?.grn_number || 'This GRN', 'cancel it instead'));
+          break;
+        }
+        deleted++;
       }
-      qc.invalidateQueries({ queryKey: ['grn_headers'] });
-      setSelectedIds(new Set());
-      toast.success(`${selectedIds.size} GRN(s) deleted`);
+      if (deleted > 0) {
+        qc.invalidateQueries({ queryKey: ['grn_headers'] });
+        setSelectedIds(new Set());
+        toast.success(`${deleted} GRN(s) deleted`);
+      }
     } catch (err: any) { toast.error(`Delete failed: ${err.message}`); }
   };
 

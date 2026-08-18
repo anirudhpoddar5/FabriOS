@@ -164,7 +164,7 @@ export default function OrderDetailPage() {
 
   const delayTarget = useMemo(() => {
     if (!order) return null;
-    const result = getOrderDelay(order, colourways, entries, new Date(), workingDays);
+    const result = getOrderDelay(order, colourways, entries, new Date(), workingDays, data.orderRows as any[]);
     return result;
   }, [order, colourways, entries, workingDays]);
 

@@ -16,17 +16,23 @@ function daysBetween(a: string, b: string): number {
 }
 
 export function getOrderHealth(
-  order: { id: string; status: string; targetEndDate?: string; buyerDeliveryDate?: string; createdAt: string; orderQty?: number },
+  order: { id: string; status: string; targetEndDate?: string; buyerDeliveryDate?: string; createdAt: string },
   colourways: { orderId: string; orderedQty: number }[],
   entries: { orderId: string; outputQty: number }[],
   today: string,
+  orderRows: { orderId: string; orderQty: number }[] = [],
 ): OrderHealthResult {
   const dueDate = order.targetEndDate || order.buyerDeliveryDate || null;
 
   const colourwayQty = colourways
     .filter(c => c.orderId === order.id)
     .reduce((s, c) => s + (c.orderedQty || 0), 0);
-  const orderedQty = colourwayQty > 0 ? colourwayQty : (order.orderQty || 0);
+  // order_headers carries no orderQty field — an order saved with colourless rows
+  // (no colour_name entered) has zero colourways, so fall back to order_rows.
+  const rowQty = orderRows
+    .filter(r => r.orderId === order.id)
+    .reduce((s, r) => s + (r.orderQty || 0), 0);
+  const orderedQty = colourwayQty > 0 ? colourwayQty : rowQty;
 
   const producedQty = entries
     .filter(e => e.orderId === order.id)

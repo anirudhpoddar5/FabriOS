@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { DatePickerField } from '../components/DatePickerField';
 import { ExplainerTip } from '../components/ExplainerTip';
 import { getOrderBadge } from '../lib/order-status';
-import { friendlyOrderDeleteError } from '../lib/order-delete';
+import { friendlyOrderDeleteError } from '../lib/delete-errors';
 import { summariseOrderRows, EMPTY_ORDER_SUMMARY } from '../lib/order-summary';
 import { printDetailPage } from '../lib/pdf-export';
 import { useFormDraft } from '@/hooks/use-form-draft';
@@ -95,7 +95,13 @@ export default function StitchingOrdersPage() {
 
   const getBuyer = useCallback((id: string) => { const b = data.buyers.find(x => x.id === id); return b ? `${b.code}${b.name ? ' - ' + b.name : ''}` : id; }, [data.buyers]);
 
-  const orderSummary = useMemo(() => summariseOrderRows(data.orderRows as any[]), [data.orderRows]);
+  const getFabric = useCallback((id: string) => data.fabrics.find(f => f.id === id)?.name || id, [data.fabrics]);
+  const getProduct = useCallback((id: string) => data.stitchingProducts.find(p => p.id === id)?.name || id, [data.stitchingProducts]);
+
+  const orderSummary = useMemo(
+    () => summariseOrderRows(data.orderRows as any[], { getProduct, getFabric }),
+    [data.orderRows, getProduct, getFabric]
+  );
   const summaryFor = useCallback((id: string) => orderSummary.get(id) || EMPTY_ORDER_SUMMARY, [orderSummary]);
 
   const entryCountMap = useMemo(() => {
@@ -448,6 +454,8 @@ export default function StitchingOrdersPage() {
             <TableHead className="text-xs h-9">Internal PO</TableHead>
             <TableHead className="text-xs h-9">Buyer</TableHead>
             <TableHead className="text-xs h-9">Style</TableHead>
+            <TableHead className="text-xs h-9">Product</TableHead>
+            <TableHead className="text-xs h-9">Fabric</TableHead>
             <TableHead className="text-xs h-9">Qty</TableHead>
             <TableHead className="text-xs h-9 min-w-[100px]">Progress</TableHead>
             <TableHead className="text-xs h-9"><span className="inline-flex items-center gap-1">Status <ExplainerTip text="Calculated automatically from production entries and dates — not the status you set. Not Started = nothing logged yet, WIP = in progress, Delayed = past target date. To set the status yourself, open the order or tick it and use Change status." /></span></TableHead>
@@ -455,11 +463,11 @@ export default function StitchingOrdersPage() {
           </TableRow></TableHeader>
           <TableBody>
             {sorted.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">No orders found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-8">No orders found</TableCell></TableRow>
             ) : Object.entries(monthlyGroups).map(([monthKey, group]) => (
               <Fragment key={monthKey}>
                 <TableRow className="bg-muted/30">
-                  <TableCell colSpan={8} className="text-[11px] font-semibold py-1.5 px-3">
+                  <TableCell colSpan={10} className="text-[11px] font-semibold py-1.5 px-3">
                     {monthKey === '__no_date__' ? 'No Delivery Date' : new Date(monthKey + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                     <span className="text-muted-foreground font-normal ml-2">({group.items.length} orders, {group.qty} qty)</span>
                   </TableCell>
@@ -475,6 +483,8 @@ export default function StitchingOrdersPage() {
                       <TableCell className="text-sm py-2 font-mono">{o.internalPO ?? '—'}</TableCell>
                       <TableCell className="text-sm py-2">{getBuyer(o.buyerId)}</TableCell>
                       <TableCell className="text-sm py-2">{o.style}</TableCell>
+                      <TableCell className="text-sm py-2">{sum.product || '—'}</TableCell>
+                      <TableCell className="text-sm py-2">{sum.fabric || '—'}</TableCell>
                       <TableCell className="text-sm py-2 whitespace-nowrap">{sum.qty ? `${sum.qty} ${sum.uom}`.trim() : '—'}</TableCell>
                       <TableCell className="py-2">
                         <div className="flex items-center gap-2">
@@ -496,7 +506,7 @@ export default function StitchingOrdersPage() {
                 {Object.keys(monthlyGroups).length > 1 && (
                   <TableRow className="bg-muted/40">
                     <TableCell></TableCell>
-                    <TableCell colSpan={3} className="text-[10px] py-1.5 font-medium text-right">Sub-total ({group.label})</TableCell>
+                    <TableCell colSpan={5} className="text-[10px] py-1.5 font-medium text-right">Sub-total ({group.label})</TableCell>
                     <TableCell className="text-[10px] py-1.5 font-mono font-medium">{group.qty} qty</TableCell>
                     <TableCell colSpan={2} className="text-[10px] py-1.5 font-mono text-muted-foreground">Value: {group.value.toFixed(0)}</TableCell>
                     <TableCell></TableCell>
@@ -507,7 +517,7 @@ export default function StitchingOrdersPage() {
             {Object.keys(monthlyGroups).length > 1 && (
               <TableRow className="bg-muted/60 font-semibold">
                 <TableCell></TableCell>
-                <TableCell colSpan={3} className="text-xs py-2 text-right">Page Total ({pagination.pageItems.length} orders)</TableCell>
+                <TableCell colSpan={5} className="text-xs py-2 text-right">Page Total ({pagination.pageItems.length} orders)</TableCell>
                 <TableCell className="text-xs py-2 font-mono">{pagination.pageItems.reduce((s, o) => s + summaryFor(o.id).qty, 0)} qty</TableCell>
                 <TableCell colSpan={2} className="text-xs py-2 font-mono">Value: {pagination.pageItems.reduce((s, o) => s + summaryFor(o.id).value, 0).toFixed(0)}</TableCell>
                 <TableCell></TableCell>
