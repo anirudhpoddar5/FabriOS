@@ -86,3 +86,19 @@ ordered qty on the dashboard and in delay exceptions. Fix: fall back to the
 ### G. Stitching order list has no Product / Fabric columns
 Printing has them; Stitching only shows Qty. Not a bug, but the two pages are
 meant to mirror each other.
+
+### H. Master lists cannot be sorted or grouped — reported 2026-08-18
+`src/components/MasterCRUD.tsx` has **no sorting logic at all** (no sort, no
+column headers you can click, no grouping). Every settings list — Printing
+Tables, Stitching Lines, Buyers, Fabrics, Workers, Rates, Vendors, Products —
+renders rows in whatever order Supabase happened to return them.
+
+Reported against `/settings/printing-tables`, where the Factory column is the
+first column but the rows are interleaved (22 Godown, Sanganer, 22 Godown,
+Sanganer...), so you cannot read one factory's tables together.
+
+Fix once in `MasterCRUD` so every master page benefits, rather than per page.
+Minimum useful version: make the column headers click-to-sort. Better for this
+case: an optional `groupBy` prop so Printing Tables and Stitching Lines can
+show a factory sub-heading with its rows underneath — the same monthly-group
+pattern the order lists already use.
