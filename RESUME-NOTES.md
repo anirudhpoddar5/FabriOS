@@ -62,36 +62,48 @@ Every item A-H from the original sweep is implemented, reviewed and merged.
 5. `MasterCRUD` sortable headers were mouse-only. Added `role`/`tabIndex`/Enter+Space
    and `aria-sort`.
 
-## STILL NOT DONE — end-to-end verification
+## End-to-end verification — DONE (commit `b0a7d9a`)
 
-Unit tests (133/133), build and lint all pass, and a mutation check confirms the new
-regression tests genuinely fail when their fix is removed. **But nothing has been
-click-tested against a running app.**
+`npx playwright test order-fixes --project=chromium` → **7/7 passing** against a real
+browser. Covers: summary columns populated, totals non-zero, blocked delete refused in
+plain English *with the order verified still intact afterwards*, clean delete works,
+status dropdown writes through to the DB, printing tables grouped by factory.
 
-`tests/order-fixes.spec.ts` is written and ready — it seeds its own throwaway orders
-via the service-role client and cleans up after itself, covering: the summary columns,
-the refused delete (asserting the order survives), a clean delete, the status dropdown,
-and factory grouping.
+Test account: `steelman@fabrios-demo.com`, password rotated 2026-08-18 and stored in
+**`.env.test`** (gitignored, mode 600; `playwright.config.ts` loads it automatically).
+Verified absent from all git history.
 
-It cannot run because the saved Playwright session
-(`playwright/.auth/user.json`) expired on 2026-07-27 and there is no test password
-available. To enable it, create `.env.test` (gitignored) containing:
+**Scoping — important:** that account belongs to the *SteelM Industries* company, the
+test playground with ~168 throwaway orders. Your live company is **Poddar Exports**
+(22 Godown, Sanganer). Confirmed after the run that Poddar Exports still had exactly
+its 6 orders / 2 production entries / 505 colourways, matching the pre-work backup, and
+the spec left no seeded rows behind. Keep tests pointed at SteelM.
 
-```
-FABRIOS_TEST_EMAIL=steelman@fabrios-demo.com
-FABRIOS_TEST_PASSWORD=<the demo account password>
-```
+Two failures in the first run were faults in the spec, not the app (singular page
+heading; `[role=combobox]` matching the header's factory selector). Fixed, and the
+status trigger gained `aria-label="Order status"` — it previously had no accessible
+name.
 
-`playwright.config.ts` now loads that file automatically. Then:
+## Backups
 
-```
-npx playwright test order-fixes --project=chromium
-```
+- `npm run backup` → dumps all 40 tables to `~/Backups/fabrios/<timestamp>/`, **outside
+  the repo** so live customer data is never committed. Table list is read from the
+  generated types, so schema changes are picked up automatically.
+- Two backups already taken on 2026-08-18 (40/40 tables, 3,239 rows each).
+- **Not covered:** this is a data-only logical dump. Schema lives in
+  `supabase/migrations/` + `schema.sql`. There is no restore script yet — restoring
+  would mean inserting the JSON back in FK order.
+- **Open item:** the Supabase CLI logged in on this Mac cannot see project
+  `ejebukxlwgwebjgdicyb`, so platform backup settings could not be checked. Confirm in
+  the Supabase dashboard (Database → Backups) whether daily backups / PITR are enabled
+  for the plan this project is on. Free tier has no automated backups.
 
-Do NOT run `--project=qa-full` alongside it: that spec wipes 22 tables for the
-current company.
+## Housekeeping worth doing
 
-The manual checklist below remains valid as an alternative.
+The database holds **20 companies**, of which 18 are junk from old E2E runs
+("Lifecycle Corp-*", "Zero Prod Corp-*", "E2E Test Company", "Probe Corp") — one of them
+carrying 20 orders and 25 factories. Only *Poddar Exports* (live) and *SteelM
+Industries* (test) are real. Worth purging, carefully, with a backup in hand.
 
 ## Manual live checklist (if not running Playwright)
 Checklist for the live pass, on `/printing-orders`:
