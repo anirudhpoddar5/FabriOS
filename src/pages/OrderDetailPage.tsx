@@ -276,7 +276,7 @@ export default function OrderDetailPage() {
         <Badge className={`${derivedStatus.className} text-xs`}>{derivedStatus.label}</Badge>
         <Badge variant="outline" className="text-xs capitalize">{module}</Badge>
         <Select value={order.status || 'Started'} onValueChange={handleStatusChange} disabled={savingStatus}>
-          <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Order status" className="h-8 w-[150px] text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Started">Started</SelectItem>
             <SelectItem value="Completed">Completed</SelectItem>

@@ -140,7 +140,8 @@ test('order detail page can set the status directly', async ({ page }) => {
   await page.goto(`/printing-orders/${orderWithEntry}`);
   await page.waitForLoadState('networkidle');
 
-  const trigger = page.locator('[role="combobox"]').first();
+  // scope to the order's own status control — the app header also has a combobox
+  const trigger = page.getByRole('combobox', { name: /order status/i });
   await expect(trigger).toBeVisible();
   await trigger.click();
   await page.getByRole('option', { name: 'Completed' }).click();
@@ -160,7 +161,7 @@ test('printing tables are grouped by factory instead of interleaved', async ({ p
 
   // guard first: with no rows the contiguity check below is vacuously true, so an
   // unauthenticated or broken page would "pass" without verifying anything
-  await expect(page.getByRole('heading', { name: /Printing Tables/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Printing Table/i })).toBeVisible();
   const dataRows = page.locator('tbody tr');
   await expect(dataRows.first()).toBeVisible();
   expect(await dataRows.count(), 'no rows rendered — nothing was verified').toBeGreaterThan(1);
