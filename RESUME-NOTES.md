@@ -1,4 +1,4 @@
-# Resume notes — order list fixes (2026-08-18)
+# Resume notes — FabriOS order + backlog work (2026-08-18)
 
 ## Shipped and deployed (commit `6569caf`)
 
@@ -34,71 +34,84 @@ Checklist for the live pass, on `/printing-orders`:
 9. Repeat 1-2 and 5-7 on `/stitching-orders`.
 10. Reports -> Order Status tab -> "Total Qty" tile is non-zero.
 
-## Backlog found by the codebase sweep — not fixed
+## Backlog — now DONE (commit `b44b1bf`, deployed)
 
-Ranked by real damage.
+Every item A-H from the original sweep is implemented, reviewed and merged.
 
-### A. GRN bulk delete destroys line detail — data loss
-`src/pages/GRNPage.tsx` `handleBulkDelete` (~line 280). Deletes `grn_lines`
-then `grn_headers`. `grn_lines` already cascades, so the first delete is
-redundant — but `stock_transactions.grn_id` blocks the header delete with no
-`ON DELETE`. So for any GRN that was ever **accepted** (the normal case), the
-lines are permanently deleted and the header survives: inventory was credited,
-but there is no record of what was received. Same one-line shape as the order
-delete already fixed here.
+| Item | What was wrong | Fix |
+|---|---|---|
+| A | GRN delete destroyed line detail, orphaned the header (accepted GRNs) | delete header only; DB cascades; friendly FK error |
+| B | PO delete could strand an empty PO header | same pattern |
+| C | Editing a quotation deleted all lines before re-inserting | insert first, then delete leftovers **by quotation_id** |
+| D | Quotation→Order bypassed the RPC, created no colourways (0% forever) | uses `save_order_with_rows_and_colourways` + one default colourway per row |
+| E | Bulk deletes reported partial results as total failure | all report the count actually deleted |
+| F | Dead `order.orderQty` fallbacks → 0% progress for colourless orders | fall back to `order_rows` qty in order-delay, order-health, 3 Dashboard sites |
+| G | Stitching list missing Product/Fabric columns | added, colSpans corrected to 10 |
+| H | No sorting on any master list | `MasterCRUD` click-to-sort (keyboard accessible) + opt-in `groupBy`, wired to factory |
 
-### B. Purchase Order bulk delete can strand an empty PO
-`src/pages/PurchaseOrdersPage.tsx` `handleBulkDelete` (~line 172). Same
-redundant child delete; `grn_headers.po_id` can block step 2 after step 1
-committed, leaving a PO header with no lines, still referenced by a GRN.
+### Review pass — five issues found in the agents' output, all fixed
+1. Quotation edit deleted old lines by **cached** ids; a second edit in one session
+   would have silently duplicated every line and doubled the total. Now deletes by
+   `quotation_id`, excluding the just-inserted ids, and refreshes the cache.
+2. `convertToOrder`'s early `return` skipped `setConvertingId(null)` — Convert button
+   stuck disabled after any failure. Moved to `finally`.
+3. A failed "mark accepted" showed an error toast *and* a success toast, then navigated
+   away. Now returns after the warning.
+4. The Playwright grouping test passed vacuously on an empty table. Now asserts rows
+   exist first.
+5. `MasterCRUD` sortable headers were mouse-only. Added `role`/`tabIndex`/Enter+Space
+   and `aria-sort`.
 
-### C. Quotation edit deletes all lines before re-inserting them
-`src/pages/QuotationsPage.tsx` `handleSave` (~line 192). `delete
-quotation_lines` then insert new ones one at a time. If insert *i* fails, the
-original lines are already gone and cannot be recovered. Needs a
-`save_quotation_with_lines` RPC (mirroring `save_po_with_lines`), or at
-minimum insert-then-delete.
+## STILL NOT DONE — end-to-end verification
 
-### D. Quotation -> Order conversion bypasses the atomic RPC
-`src/pages/QuotationsPage.tsx` `convertToOrder` (~line 275). Inserts
-`order_headers`, loops inserting `order_rows`, then marks the quotation
-accepted. Never creates `order_colourways` at all — so a converted order has
-no colourways, which means 0% progress forever and blank colourway views. If
-the status update fails the user can convert twice and get a duplicate order.
-`save_order_with_rows_and_colourways` already exists for exactly this and is
-what CLAUDE.md says to use.
+Unit tests (133/133), build and lint all pass, and a mutation check confirms the new
+regression tests genuinely fail when their fix is removed. **But nothing has been
+click-tested against a running app.**
 
-### E. Every bulk-delete loop reports partial results as total failure
-Printing, Stitching, Quotations, GRN, PO, Stock Jobs. If item 3 of 10 fails,
-items 1-2 are already deleted and the user only sees "Delete failed". The two
-order pages now report how many actually went; the others do not.
+`tests/order-fixes.spec.ts` is written and ready — it seeds its own throwaway orders
+via the service-role client and cleans up after itself, covering: the summary columns,
+the refused delete (asserting the order survives), a clean delete, the status dropdown,
+and factory grouping.
 
-### F. Dead `order.orderQty` fallbacks (cosmetic today, wrong on real data)
-`src/lib/order-delay.ts:82`, `src/lib/order-health.ts:29`,
-`DashboardPage.tsx:354` and `:608` all do
-`colourwayQty > 0 ? colourwayQty : order.orderQty || 0`. `order.orderQty` is
-always `undefined`, so the fallback silently yields 0. This bites any order
-saved **without colour names** — the save filters colourways by a non-empty
-colour name, so such an order has zero colourways and shows 0% progress and 0
-ordered qty on the dashboard and in delay exceptions. Fix: fall back to the
-`order_rows` qty (i.e. `summariseOrderRows`), not to the header field.
+It cannot run because the saved Playwright session
+(`playwright/.auth/user.json`) expired on 2026-07-27 and there is no test password
+available. To enable it, create `.env.test` (gitignored) containing:
 
-### G. Stitching order list has no Product / Fabric columns
-Printing has them; Stitching only shows Qty. Not a bug, but the two pages are
-meant to mirror each other.
+```
+FABRIOS_TEST_EMAIL=steelman@fabrios-demo.com
+FABRIOS_TEST_PASSWORD=<the demo account password>
+```
 
-### H. Master lists cannot be sorted or grouped — reported 2026-08-18
-`src/components/MasterCRUD.tsx` has **no sorting logic at all** (no sort, no
-column headers you can click, no grouping). Every settings list — Printing
-Tables, Stitching Lines, Buyers, Fabrics, Workers, Rates, Vendors, Products —
-renders rows in whatever order Supabase happened to return them.
+`playwright.config.ts` now loads that file automatically. Then:
 
-Reported against `/settings/printing-tables`, where the Factory column is the
-first column but the rows are interleaved (22 Godown, Sanganer, 22 Godown,
-Sanganer...), so you cannot read one factory's tables together.
+```
+npx playwright test order-fixes --project=chromium
+```
 
-Fix once in `MasterCRUD` so every master page benefits, rather than per page.
-Minimum useful version: make the column headers click-to-sort. Better for this
-case: an optional `groupBy` prop so Printing Tables and Stitching Lines can
-show a factory sub-heading with its rows underneath — the same monthly-group
-pattern the order lists already use.
+Do NOT run `--project=qa-full` alongside it: that spec wipes 22 tables for the
+current company.
+
+The manual checklist below remains valid as an alternative.
+
+## Manual live checklist (if not running Playwright)
+Checklist for the live pass, on `/printing-orders`:
+1. Product, Fabric and Qty columns show values (not blank, not `—` for orders that have rows).
+2. Month sub-total and Page Total show real qty and value, not 0.
+3. CSV button — file has Product and Fabric columns and non-zero Qty.
+4. Printer button — same.
+5. Tick PO-P-0001 (has production entries) -> Delete -> expect:
+   *"PO-P-0001 has production entries logged against it, so it can't be deleted.
+   Remove those first, or set the order to Cancelled instead."*
+   Then confirm the order and its colourways are **still intact**.
+6. Tick an order with NO entries -> Delete -> deletes cleanly.
+7. Open an order -> status dropdown in the header -> set Completed -> toast, badge updates.
+8. Hover the (i) next to the Status column header -> tooltip explains the derived labels.
+9. Repeat 1-2 and 5-7 on `/stitching-orders`.
+10. Reports -> Order Status tab -> "Total Qty" tile is non-zero.
+
+
+### Additionally worth checking now
+11. Settings → Printing Tables: rows grouped under a factory heading with a count; click any column header to sort.
+12. Quotations: edit a quotation's lines, save, then edit and save **again** — line items must not duplicate.
+13. Quotations: convert one to an order — the new order must show a colourway and real progress, not 0%.
+14. GRN: try deleting an accepted GRN — must refuse in plain English, and its line items must survive.
