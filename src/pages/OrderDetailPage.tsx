@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ArrowLeft, Package, DollarSign, TrendingUp, Calendar, AlertTriangle, Printer, Download, Truck, Edit, IndianRupee } from 'lucide-react';
@@ -33,7 +34,7 @@ export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { data, getItems } = useData();
+  const { data, getItems, updateItem } = useData();
   const { profile } = useAuth();
   const companyId = profile?.company_id;
 
@@ -52,6 +53,7 @@ export default function OrderDetailPage() {
     produced_qty: number;
   } | null>(null);
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5, 6]);
+  const [savingStatus, setSavingStatus] = useState(false);
 
   const isPrinting = location.pathname.startsWith('/printing-orders');
   const module = isPrinting ? 'printing' : 'stitching';
@@ -256,6 +258,14 @@ export default function OrderDetailPage() {
     const a = document.createElement('a'); a.href = url; a.download = `${order.internalPO}.csv`; a.click();
   };
 
+  const handleStatusChange = async (status: string) => {
+    setSavingStatus(true);
+    const { error } = await updateItem(isPrinting ? 'printingOrders' : 'stitchingOrders', order.id, { status } as any);
+    setSavingStatus(false);
+    if (error) toast.error(`Could not update status: ${error}`);
+    else toast.success(`Order marked ${status}`);
+  };
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -263,8 +273,17 @@ export default function OrderDetailPage() {
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
         <h1 className="text-lg font-semibold">{order.internalPO}</h1>
-        <Badge className={`${derivedStatus.color} text-xs`}>{derivedStatus.label}</Badge>
+        <Badge className={`${derivedStatus.className} text-xs`}>{derivedStatus.label}</Badge>
         <Badge variant="outline" className="text-xs capitalize">{module}</Badge>
+        <Select value={order.status || 'Started'} onValueChange={handleStatusChange} disabled={savingStatus}>
+          <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Started">Started</SelectItem>
+            <SelectItem value="Completed">Completed</SelectItem>
+            <SelectItem value="Shipped">Shipped</SelectItem>
+            <SelectItem value="Cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant="outline" onClick={() => navigate(`${isPrinting ? '/printing-orders' : '/stitching-orders'}/${id}/pod`)}>
             <Truck className="h-3.5 w-3.5 mr-1" /> POD

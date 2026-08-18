@@ -331,11 +331,13 @@ export default function ReportsPage() {
 
   const orderSummary = useMemo(() => {
     const totalOrders = allOrders.length;
-    const totalOrdered = allOrders.reduce((s: number, o: any) => s + (o.orderQty || 0), 0);
+    // qty lives on order_rows, not order_headers — same source/pattern as profitLossData's qty
+    const orderIds = new Set(allOrders.map((o: any) => o.id));
+    const totalOrdered = data.orderRows.filter((r: any) => orderIds.has(r.orderId)).reduce((s: number, r: any) => s + (r.orderQty || 0), 0);
     const totalProduced = data.entries.filter((e: any) => allOrders.some((o: any) => o.id === e.orderId)).reduce((s: number, e: any) => s + e.outputQty, 0);
     const completed = allOrders.filter((o: any) => o.status === 'Completed' || o.status === 'Shipped').length;
     return { totalOrders, totalOrdered, totalProduced, completed, pct: totalOrders > 0 ? (completed / totalOrders) * 100 : 0 };
-  }, [allOrders, data.entries]);
+  }, [allOrders, data.entries, data.orderRows]);
 
   const prodSummary = useMemo(() => {
     const totalEntries = filteredEntries.length;

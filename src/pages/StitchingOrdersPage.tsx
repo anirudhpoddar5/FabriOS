@@ -16,7 +16,10 @@ import DataTablePagination from '../components/DataTablePagination';
 import { usePagination } from '../hooks/use-pagination';
 import { toast } from 'sonner';
 import { DatePickerField } from '../components/DatePickerField';
+import { ExplainerTip } from '../components/ExplainerTip';
 import { getOrderBadge } from '../lib/order-status';
+import { friendlyOrderDeleteError } from '../lib/order-delete';
+import { summariseOrderRows, EMPTY_ORDER_SUMMARY } from '../lib/order-summary';
 import { printDetailPage } from '../lib/pdf-export';
 import { useFormDraft } from '@/hooks/use-form-draft';
 import { SaveButton } from '@/components/SaveButton';
@@ -92,6 +95,9 @@ export default function StitchingOrdersPage() {
 
   const getBuyer = useCallback((id: string) => { const b = data.buyers.find(x => x.id === id); return b ? `${b.code}${b.name ? ' - ' + b.name : ''}` : id; }, [data.buyers]);
 
+  const orderSummary = useMemo(() => summariseOrderRows(data.orderRows as any[]), [data.orderRows]);
+  const summaryFor = useCallback((id: string) => orderSummary.get(id) || EMPTY_ORDER_SUMMARY, [orderSummary]);
+
   const entryCountMap = useMemo(() => {
     const map = new Map<string, number>();
     data.entries.forEach(e => map.set(e.orderId, (map.get(e.orderId) || 0) + 1));
@@ -146,15 +152,20 @@ export default function StitchingOrdersPage() {
       const month = o.buyerDeliveryDate ? o.buyerDeliveryDate.slice(0, 7) : '__no_date__';
       if (!groups[month]) groups[month] = { label: month === '__no_date__' ? 'No Date' : month, items: [], qty: 0, value: 0 };
       groups[month].items.push(o);
-      groups[month].qty += o.orderQty || 0;
-      groups[month].value += (o.orderQty || 0) * ((o as any).ratePerItem || 0);
+      const sum = summaryFor(o.id);
+      groups[month].qty += sum.qty;
+      groups[month].value += sum.value;
     }
     return groups;
-  }, [pagination.pageItems]);
+  }, [pagination.pageItems, summaryFor]);
 
   const exportFilteredCSV = () => {
     const header = 'Internal PO,Buyer,Style,Qty,UOM,Status,Buyer Delivery Date,Target End Date\n';
-    const rows = sorted.map(o => `${o.internalPO},${getBuyer(o.buyerId)},${o.style},${o.orderQty || 0},${o.uom || ''},${o.status},${o.buyerDeliveryDate || ''},${o.targetEndDate || ''}`).join('\n');
+    const q = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = sorted.map(o => {
+      const s = summaryFor(o.id);
+      return [o.internalPO, getBuyer(o.buyerId), o.style, s.qty, s.uom, o.status, o.buyerDeliveryDate || '', o.targetEndDate || ''].map(q).join(',');
+    }).join('\n');
     const blob = new Blob([header + rows], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'stitching-orders-filtered.csv'; a.click();
   };
@@ -162,12 +173,12 @@ export default function StitchingOrdersPage() {
   const printFiltered = () => {
     printDetailPage(`Stitching Orders (${sorted.length})`, [
       { label: 'Total Orders', value: String(sorted.length) },
-      { label: 'Total Qty', value: String(sorted.reduce((s, o) => s + (o.orderQty || 0), 0)) },
+      { label: 'Total Qty', value: String(sorted.reduce((s, o) => s + summaryFor(o.id).qty, 0)) },
     ], [
       {
         title: 'Orders',
         headers: ['PO #', 'Buyer', 'Style', 'Qty', 'Status', 'Buyer Delivery'],
-        rows: sorted.map(o => [o.internalPO || '—', getBuyer(o.buyerId), o.style || '—', String(o.orderQty || 0), o.status, o.buyerDeliveryDate || '—']),
+        rows: sorted.map(o => [o.internalPO || '—', getBuyer(o.buyerId), o.style || '—', `${summaryFor(o.id).qty} ${summaryFor(o.id).uom}`.trim(), o.status, o.buyerDeliveryDate || '—']),
       },
     ]);
   };
@@ -315,26 +326,27 @@ export default function StitchingOrdersPage() {
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} orders?`)) return;
+    if (!confirm(`Delete ${selectedIds.size} order(s)? This cannot be undone.`)) return;
     setSaving(true);
     try {
+      // Deleting the header cascades to order_rows + order_colourways in one statement,
+      // so a blocked delete leaves the order fully intact instead of half-gutted.
+      let deleted = 0;
       for (const id of selectedIds) {
-        const { data: rowIds } = await supabase.from('order_rows').select('id').eq('order_id', id);
-        const rl = (rowIds || []).map(r => r.id);
-        if (rl.length > 0) {
-          const { error: cwErr } = await supabase.from('order_colourways').delete().in('order_row_id', rl);
-          if (cwErr) { toast.error(`Bulk delete failed: ${cwErr.message}`); return; }
-          const { error: rErr } = await supabase.from('order_rows').delete().in('id', rl);
-          if (rErr) { toast.error(`Bulk delete failed: ${rErr.message}`); return; }
+        const { error } = await supabase.from('order_headers').delete().eq('id', id);
+        if (error) {
+          toast.error(friendlyOrderDeleteError(error.message, orders.find(o => o.id === id)?.internalPO || 'This order'));
+          break;
         }
-        const { error: hErr } = await supabase.from('order_headers').delete().eq('id', id);
-        if (hErr) { toast.error(`Bulk delete failed: ${hErr.message}`); return; }
+        deleted++;
       }
-      await refreshData();
-      setSelectedIds(new Set());
-      toast.success(`${selectedIds.size} order(s) deleted`);
+      if (deleted > 0) {
+        await refreshData();
+        setSelectedIds(new Set());
+        toast.success(`${deleted} order(s) deleted`);
+      }
     } catch (err: any) {
-      toast.error(`Bulk delete failed: ${err.message}`);
+      toast.error(`Delete failed: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -438,7 +450,7 @@ export default function StitchingOrdersPage() {
             <TableHead className="text-xs h-9">Style</TableHead>
             <TableHead className="text-xs h-9">Qty</TableHead>
             <TableHead className="text-xs h-9 min-w-[100px]">Progress</TableHead>
-            <TableHead className="text-xs h-9">Status</TableHead>
+            <TableHead className="text-xs h-9"><span className="inline-flex items-center gap-1">Status <ExplainerTip text="Calculated automatically from production entries and dates — not the status you set. Not Started = nothing logged yet, WIP = in progress, Delayed = past target date. To set the status yourself, open the order or tick it and use Change status." /></span></TableHead>
             <TableHead className="text-xs h-9 w-[60px]"></TableHead>
           </TableRow></TableHeader>
           <TableBody>
@@ -454,6 +466,7 @@ export default function StitchingOrdersPage() {
                 </TableRow>
                 {group.items.map(o => {
                   const prog = getProgress(o.id);
+                  const sum = summaryFor(o.id);
                   return (
                     <TableRow key={o.id} className={selectedIds.has(o.id) ? 'bg-primary/5' : 'cursor-pointer hover:bg-accent/50'} onClick={() => navigate(`/stitching-orders/${o.id}`)}>
                       <TableCell className="py-2 px-2" onClick={e => e.stopPropagation()}>
@@ -462,7 +475,7 @@ export default function StitchingOrdersPage() {
                       <TableCell className="text-sm py-2 font-mono">{o.internalPO ?? '—'}</TableCell>
                       <TableCell className="text-sm py-2">{getBuyer(o.buyerId)}</TableCell>
                       <TableCell className="text-sm py-2">{o.style}</TableCell>
-                      <TableCell className="text-sm py-2">{o.orderQty} {o.uom}</TableCell>
+                      <TableCell className="text-sm py-2 whitespace-nowrap">{sum.qty ? `${sum.qty} ${sum.uom}`.trim() : '—'}</TableCell>
                       <TableCell className="py-2">
                         <div className="flex items-center gap-2">
                           <Progress value={Math.min(prog.pct, 100)} className="h-2 flex-1" />
@@ -495,8 +508,8 @@ export default function StitchingOrdersPage() {
               <TableRow className="bg-muted/60 font-semibold">
                 <TableCell></TableCell>
                 <TableCell colSpan={3} className="text-xs py-2 text-right">Page Total ({pagination.pageItems.length} orders)</TableCell>
-                <TableCell className="text-xs py-2 font-mono">{pagination.pageItems.reduce((s, o) => s + (o.orderQty || 0), 0)} qty</TableCell>
-                <TableCell colSpan={2} className="text-xs py-2 font-mono">Value: {pagination.pageItems.reduce((s, o) => s + (o.orderQty || 0) * ((o as any).ratePerItem || 0), 0).toFixed(0)}</TableCell>
+                <TableCell className="text-xs py-2 font-mono">{pagination.pageItems.reduce((s, o) => s + summaryFor(o.id).qty, 0)} qty</TableCell>
+                <TableCell colSpan={2} className="text-xs py-2 font-mono">Value: {pagination.pageItems.reduce((s, o) => s + summaryFor(o.id).value, 0).toFixed(0)}</TableCell>
                 <TableCell></TableCell>
               </TableRow>
             )}
