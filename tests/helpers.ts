@@ -44,8 +44,8 @@ export const TEST_PASSWORD = (() => {
   if (!pw) throw new Error('Set FABRIOS_TEST_PASSWORD before running tests that import tests/helpers.ts');
   return pw;
 })();
-export const TEST_COMPANY = 'SteelM Industries';
-export const TEST_DISPLAY = 'SteelMan Tester';
+export const TEST_COMPANY = 'FabriOS Test Co';
+export const TEST_DISPLAY = 'FabriOS Tester';
 
 export function getUserIdFromStorage(page: Page): Promise<string | null> {
   const projectId = 'ejebukxlwgwebjgdicyb';

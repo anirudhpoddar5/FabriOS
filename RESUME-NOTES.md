@@ -86,17 +86,45 @@ name.
 
 ## Backups
 
-- `npm run backup` → dumps all 40 tables to `~/Backups/fabrios/<timestamp>/`, **outside
-  the repo** so live customer data is never committed. Table list is read from the
-  generated types, so schema changes are picked up automatically.
-- Two backups already taken on 2026-08-18 (40/40 tables, 3,239 rows each).
-- **Not covered:** this is a data-only logical dump. Schema lives in
-  `supabase/migrations/` + `schema.sql`. There is no restore script yet — restoring
-  would mean inserting the JSON back in FK order.
-- **Open item:** the Supabase CLI logged in on this Mac cannot see project
-  `ejebukxlwgwebjgdicyb`, so platform backup settings could not be checked. Confirm in
-  the Supabase dashboard (Database → Backups) whether daily backups / PITR are enabled
-  for the plan this project is on. Free tier has no automated backups.
+- `npm run backup` → all 40 tables to `~/Backups/fabrios/<timestamp>/`, **outside the
+  repo** so live customer data is never committed. Table list is read from the generated
+  types, so schema changes are picked up automatically.
+- Backups taken 2026-08-18: three pre-purge (3,239 rows each) and one post-purge
+  (91 rows). The pre-purge ones are the only copy of the deleted test data.
+- **Not covered:** data only. Schema is in `supabase/migrations/` + `schema.sql`.
+  **There is no restore script** — restoring would mean re-inserting the JSON in FK
+  order. Worth building.
+- **OPEN TODO for Anirudh:** confirm in the Supabase dashboard (Database → Backups)
+  whether daily backups / PITR are enabled for `ejebukxlwgwebjgdicyb`. Free tier has
+  none. Claude cannot check — the CLI account signed in on this Mac cannot see that
+  project.
+
+## Database cleanup — DONE 2026-08-18
+
+Was 20 companies; 18 were junk from old E2E runs and 1 was the old SteelM test company.
+
+- Deleted **3,156 rows across 19 companies**, plus **21 throwaway auth logins**
+  (`@fabrios-e2e.com`, `@fabrios-test.com`) and their orphaned profiles.
+- Kept: **Poddar Exports** (live) and the login `info@poddarexp.com`.
+- Verified afterwards: Poddar Exports still has exactly 6 orders, 2 production entries,
+  4 buyers, 4 fabrics, 2 factories — identical to the pre-purge backup.
+- The purge stopped safely mid-run the first time (`worker_types.factory_id` blocked
+  the factories delete) and resumed once reordered — nothing was left half-deleted.
+
+### Test environment — rebuilt from scratch
+- `npm run seed:test` creates **"FabriOS Test Co"**: 2 factories, shifts, 4 interleaved
+  printing tables (so the grouping test has something real to prove), worker type, rate
+  master, buyer, fabric, printing + stitching product — and points the test account at
+  it. Safe to re-run; it wipes and recreates.
+- Test account `steelman@fabrios-demo.com` now belongs to that company. Credentials in
+  gitignored `.env.test`.
+- `tests/helpers.ts` `TEST_COMPANY` updated to `FabriOS Test Co`.
+- **`npx playwright test order-fixes --project=chromium` → 7/7 passing, none skipped.**
+  A previously skipped totals test now seeds two different delivery months so the
+  sub-total/page-total rows actually render, and fails loudly if they don't.
+- Older specs still reference the deleted SteelM data (`steelman-full-lifecycle`,
+  `steelman-user-audit`, `qa-full`) — they will need reworking against the new seed
+  before they can run again.
 
 ## Housekeeping worth doing
 

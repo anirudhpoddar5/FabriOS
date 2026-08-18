@@ -17,14 +17,14 @@ let orderWithEntry: string;   // must refuse to delete
 let orderNoEntry: string;     // must delete cleanly
 const cleanup: { table: string; id: string }[] = [];
 
-async function seedOrder(internalPo: string, qty: number, rate: number) {
+async function seedOrder(internalPo: string, qty: number, rate: number, deliveryDate = '2026-12-15') {
   const { data: fabric } = await admin.from('fabrics').select('id, name').eq('company_id', companyId).eq('is_active', true).limit(1).single();
   const { data: product } = await admin.from('printing_products').select('id, name').eq('company_id', companyId).eq('is_active', true).limit(1).single();
 
   const { data: header, error: hErr } = await admin.from('order_headers').insert({
     company_id: companyId, module: 'printing', internal_po: internalPo,
     style: TAG, status: 'Started', currency: 'INR',
-    buyer_delivery_date: '2026-12-15', target_end_date: '2026-12-10',
+    buyer_delivery_date: deliveryDate, target_end_date: deliveryDate,
   }).select('id').single();
   if (hErr) throw new Error(`seed header: ${hErr.message}`);
   cleanup.unshift({ table: 'order_headers', id: header.id });
@@ -44,22 +44,29 @@ async function seedOrder(internalPo: string, qty: number, rate: number) {
 }
 
 test.beforeAll(async () => {
-  const { data: company } = await admin.from('companies').select('id').eq('name', 'SteelM Industries').limit(1).single();
-  if (!company) throw new Error('demo company not found');
+  // The isolated test company created by `npm run seed:test` — never the live one.
+  const { data: company } = await admin.from('companies').select('id').eq('name', 'FabriOS Test Co').limit(1).single();
+  if (!company) throw new Error('test company not found — run: npm run seed:test');
   companyId = company.id;
 
-  const a = await seedOrder(`${TAG}-A`, 500, 12);
-  const b = await seedOrder(`${TAG}-B`, 300, 8);
+  const a = await seedOrder(`${TAG}-A`, 500, 12, '2026-11-20');
+  const b = await seedOrder(`${TAG}-B`, 300, 8, '2026-12-15');
   orderWithEntry = a.orderId;
   orderNoEntry = b.orderId;
 
-  // Clone an existing production entry onto order A so it has real production logged
-  // against it — that is what must make the delete refuse.
-  const { data: sample } = await admin.from('production_entries').select('*').eq('company_id', companyId).limit(1).single();
-  if (!sample) throw new Error('no existing production entry to clone from');
-  const { id, created_at, updated_at, ...shape } = sample as any;
+  // Log real production against order A — that is what must make its delete refuse.
+  // Built from the seeded masters rather than cloned, so the spec stands alone.
+  const { data: factory } = await admin.from('factories').select('id').eq('company_id', companyId).limit(1).single();
+  const { data: shift } = await admin.from('shifts').select('id').eq('factory_id', factory!.id).limit(1).single();
+  const { data: wt } = await admin.from('worker_types').select('id').eq('company_id', companyId).limit(1).single();
+  const { data: rate } = await admin.from('rate_masters').select('id, rate_value, rate_basis').eq('company_id', companyId).limit(1).single();
   const { error: eErr } = await admin.from('production_entries').insert({
-    ...shape, order_id: a.orderId, order_row_id: a.rowId, colourway_id: a.colourwayId, output_qty: 5,
+    company_id: companyId, date: '2026-11-01', module: 'printing',
+    order_id: a.orderId, order_row_id: a.rowId, colourway_id: a.colourwayId,
+    factory_id: factory!.id, shift_id: shift!.id, worker_type_id: wt!.id,
+    persons_used: 1, output_qty: 5, output_uom: 'meters',
+    rate_master_id: rate!.id, rate_basis: rate!.rate_basis, rate_value: rate!.rate_value,
+    cost_amount: rate!.rate_value, notes: 'seeded by order-fixes.spec',
   });
   if (eErr) throw new Error(`seed entry: ${eErr.message}`);
 });
@@ -97,8 +104,7 @@ test('month sub-total and page total report real qty and value, not zero', async
   await page.goto('/printing-orders');
   await page.waitForLoadState('networkidle');
   const totals = page.locator('tr', { hasText: /Sub-total|Page Total/ });
-  const count = await totals.count();
-  if (count === 0) test.skip(true, 'only one month group on this data set');
+  expect(await totals.count(), 'no Sub-total/Page Total row rendered — totals could not be checked').toBeGreaterThan(0);
   const text = await totals.first().innerText();
   const numbers = (text.match(/\d+/g) || []).map(Number);
   expect(Math.max(...numbers, 0), `totals row still reads zero: "${text}"`).toBeGreaterThan(0);
