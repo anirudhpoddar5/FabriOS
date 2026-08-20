@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { exportPDF } from '@/lib/pdf-export';
 import * as XLSX from 'xlsx';
 import { ExplainerTip } from '@/components/ExplainerTip';
+import { COMPACT_INPUT } from '@/lib/compact-input';
 
 function exportCSV(headers: string[], rows: any[][], filename: string) {
   const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
@@ -164,14 +165,14 @@ export default function ReportsPage() {
       {QUICK_DATES.map(q => (
         <Button key={q.label} size="sm" variant="outline" className="text-[10px] h-7" onClick={() => { const d = q.fn(); set('dateFrom', d.from); set('dateTo', d.to); }}>{q.label}</Button>
       ))}
-      <div className="space-y-0.5"><Label className="text-[10px]">From</Label><Input type="date" className="h-8 w-[120px] text-xs" value={filters.dateFrom} onChange={e => set('dateFrom', e.target.value)} /></div>
-      <div className="space-y-0.5"><Label className="text-[10px]">To</Label><Input type="date" className="h-8 w-[120px] text-xs" value={filters.dateTo} onChange={e => set('dateTo', e.target.value)} /></div>
+      <div className="space-y-0.5"><Label className="text-[10px]">From</Label><Input type="date" className={`${COMPACT_INPUT} w-[132px]`} value={filters.dateFrom} onChange={e => set('dateFrom', e.target.value)} /></div>
+      <div className="space-y-0.5"><Label className="text-[10px]">To</Label><Input type="date" className={`${COMPACT_INPUT} w-[132px]`} value={filters.dateTo} onChange={e => set('dateTo', e.target.value)} /></div>
       <div className="space-y-0.5"><Label className="text-[10px]">Module</Label>
         <Select value={filters.module} onValueChange={v => set('module', v)}><SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue /></SelectTrigger>
         <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="printing">Printing</SelectItem><SelectItem value="stitching">Stitching</SelectItem></SelectContent></Select>
       </div>
       <div className="space-y-0.5"><Label className="text-[10px]">Buyer</Label>
-        <Select value={filters.buyerId} onValueChange={v => set('buyerId', v)}><SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue /></SelectTrigger>
+        <Select value={filters.buyerId} onValueChange={v => set('buyerId', v)}><SelectTrigger className={`${COMPACT_INPUT} w-[132px]`}><SelectValue /></SelectTrigger>
         <SelectContent><SelectItem value="all">All</SelectItem>{data.buyers.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.code}</SelectItem>)}</SelectContent></Select>
       </div>
       <div className="space-y-0.5"><Label className="text-[10px]">Status</Label>

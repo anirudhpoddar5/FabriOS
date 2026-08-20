@@ -20,6 +20,7 @@ import { ExplainerTip } from '../components/ExplainerTip';
 import { getOrderBadge } from '../lib/order-status';
 import { friendlyOrderDeleteError } from '../lib/delete-errors';
 import { summariseOrderRows, EMPTY_ORDER_SUMMARY } from '../lib/order-summary';
+import { COMPACT_INPUT, COMPACT_NUMBER } from '../lib/compact-input';
 import { printDetailPage } from '../lib/pdf-export';
 import { useFormDraft } from '@/hooks/use-form-draft';
 import { SaveButton } from '@/components/SaveButton';
@@ -436,7 +437,7 @@ export default function StitchingOrdersPage() {
               <SelectItem value="Shipped">Shipped</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={handleBulkDelete}>
+          <Button size="sm" variant="destructive" className={COMPACT_INPUT} onClick={handleBulkDelete}>
             <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
           </Button>
           <Button size="sm" variant="ghost" className="h-8 w-8 ml-auto" onClick={() => setSelectedIds(new Set())}>
@@ -599,14 +600,14 @@ export default function StitchingOrdersPage() {
                         <div className="space-y-0.5">
                           <Label className="text-[10px] text-muted-foreground">Product *</Label>
                           <Select value={r.stitchingProductId || ''} onValueChange={v => updateRow(r._key, 'stitchingProductId', v)}>
-                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <SelectTrigger className={COMPACT_INPUT}><SelectValue placeholder="Select" /></SelectTrigger>
                             <SelectContent>{products.map(p => <SelectItem key={p.id} value={p.id}>{p.code}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-0.5">
                           <Label className="text-[10px] text-muted-foreground">Fabric</Label>
                           <Select value={r.fabricId || 'none'} onValueChange={v => updateRow(r._key, 'fabricId', v === 'none' ? '' : v)}>
-                            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="None" /></SelectTrigger>
+                            <SelectTrigger className={COMPACT_INPUT}><SelectValue placeholder="None" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
                               {fabrics.map(f => <SelectItem key={f.id} value={f.id}>{f.shortForm}</SelectItem>)}
@@ -615,19 +616,19 @@ export default function StitchingOrdersPage() {
                         </div>
                         <div className="space-y-0.5">
                           <Label className="text-[10px] text-muted-foreground">UOM</Label>
-                          <Input className="h-7 text-xs" value={r.uom} onChange={e => updateRow(r._key, 'uom', e.target.value)} />
+                          <Input className={COMPACT_INPUT} value={r.uom} onChange={e => updateRow(r._key, 'uom', e.target.value)} />
                         </div>
                         <div className="space-y-0.5">
                           <Label className="text-[10px] text-muted-foreground">Order Qty</Label>
-                          <Input className="h-7 text-xs" type="number" value={r.orderQty || ''} onChange={e => updateRow(r._key, 'orderQty', parseFloat(e.target.value) || 0)} />
+                          <Input className={COMPACT_NUMBER} type="number" value={r.orderQty || ''} onChange={e => updateRow(r._key, 'orderQty', parseFloat(e.target.value) || 0)} />
                         </div>
                         <div className="space-y-0.5">
                           <Label className="text-[10px] text-muted-foreground">Chart Qty</Label>
-                          <Input className="h-7 text-xs" type="number" value={r.chartQty || ''} onChange={e => updateRow(r._key, 'chartQty', parseFloat(e.target.value) || 0)} />
+                          <Input className={COMPACT_NUMBER} type="number" value={r.chartQty || ''} onChange={e => updateRow(r._key, 'chartQty', parseFloat(e.target.value) || 0)} />
                         </div>
                         <div className="space-y-0.5">
                           <Label className="text-[10px] text-muted-foreground">Rate/Item</Label>
-                          <Input className="h-7 text-xs" type="number" step="0.01" value={r.ratePerItem || ''} onChange={e => updateRow(r._key, 'ratePerItem', parseFloat(e.target.value) || 0)} />
+                          <Input className={COMPACT_NUMBER} type="number" step="0.01" value={r.ratePerItem || ''} onChange={e => updateRow(r._key, 'ratePerItem', parseFloat(e.target.value) || 0)} />
                         </div>
                       </div>
                       <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" disabled={rows.length <= 1} onClick={() => removeRow(r._key)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
@@ -653,11 +654,11 @@ export default function StitchingOrdersPage() {
                             <TableBody>
                               {(r.colourways || []).map((c: any) => (
                                 <TableRow key={c._key}>
-                                  <TableCell className="py-0.5"><Input className="h-6 text-[10px]" placeholder="Colour name" value={c.colourName} onChange={e => updateColourInRow(r._key, c._key, 'colourName', e.target.value)} /></TableCell>
-                                  <TableCell className="py-0.5"><Input className="h-6 text-[10px]" type="number" value={c.orderedQty || ''} onChange={e => updateColourInRow(r._key, c._key, 'orderedQty', parseFloat(e.target.value) || 0)} /></TableCell>
-                                  <TableCell className="py-0.5"><Input className="h-6 text-[10px]" value={c.uom} onChange={e => updateColourInRow(r._key, c._key, 'uom', e.target.value)} /></TableCell>
-                                  <TableCell className="py-0.5"><Input className="h-6 text-[10px]" value={c.size || ''} onChange={e => updateColourInRow(r._key, c._key, 'size', e.target.value)} /></TableCell>
-                                  <TableCell className="py-0.5"><Input className="h-6 text-[10px]" value={c.notes || ''} onChange={e => updateColourInRow(r._key, c._key, 'notes', e.target.value)} /></TableCell>
+                                  <TableCell className="py-0.5"><Input className={COMPACT_INPUT} placeholder="Colour name" value={c.colourName} onChange={e => updateColourInRow(r._key, c._key, 'colourName', e.target.value)} /></TableCell>
+                                  <TableCell className="py-0.5"><Input className={COMPACT_INPUT} type="number" value={c.orderedQty || ''} onChange={e => updateColourInRow(r._key, c._key, 'orderedQty', parseFloat(e.target.value) || 0)} /></TableCell>
+                                  <TableCell className="py-0.5"><Input className={COMPACT_INPUT} value={c.uom} onChange={e => updateColourInRow(r._key, c._key, 'uom', e.target.value)} /></TableCell>
+                                  <TableCell className="py-0.5"><Input className={COMPACT_INPUT} value={c.size || ''} onChange={e => updateColourInRow(r._key, c._key, 'size', e.target.value)} /></TableCell>
+                                  <TableCell className="py-0.5"><Input className={COMPACT_INPUT} value={c.notes || ''} onChange={e => updateColourInRow(r._key, c._key, 'notes', e.target.value)} /></TableCell>
                                   <TableCell className="py-0.5"><Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeColourFromRow(r._key, c._key)}><Trash2 className="h-2.5 w-2.5" /></Button></TableCell>
                                 </TableRow>
                               ))}

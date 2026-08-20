@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExplainerTip } from '@/components/ExplainerTip';
 import { usePagination } from '@/hooks/use-pagination';
 import DataTablePagination from '@/components/DataTablePagination';
+import { COMPACT_INPUT, COMPACT_NUMBER } from '@/lib/compact-input';
 
 const CATEGORIES = ['fabric', 'trim', 'accessory', 'other'];
 
@@ -472,19 +473,19 @@ export default function BomPage() {
                           </TableCell>
                           <TableCell className="py-1 px-1">
                             <Select value={l.category || 'fabric'} onValueChange={v => updateLine(i, 'category', v)}>
-                              <SelectTrigger className="h-7 text-xs w-[90px]"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className={`${COMPACT_INPUT} w-[90px]`}><SelectValue /></SelectTrigger>
                               <SelectContent>{(CATEGORIES ?? []).map(c => <SelectItem key={c} value={c} className="text-xs capitalize">{c}</SelectItem>)}</SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell className="py-1 px-1"><Input className="h-7 text-xs w-[120px]" value={l.item_name || ''} onChange={e => updateLine(i, 'item_name', e.target.value)} placeholder="Item name" /></TableCell>
-                          <TableCell className="py-1 px-1"><Input className="h-7 text-xs w-[60px]" value={l.uom || ''} onChange={e => updateLine(i, 'uom', e.target.value)} /></TableCell>
-                          <TableCell className="py-1 px-1"><Input className="h-7 text-xs w-[70px] text-right" type="number" value={l.quantity || ''} onChange={e => updateLine(i, 'quantity', e.target.value)} /></TableCell>
-                          <TableCell className="py-1 px-1"><Input className="h-7 text-xs w-[60px] text-right" type="number" value={l.extra_pct || ''} onChange={e => updateLine(i, 'extra_pct', e.target.value)} /></TableCell>
-                          <TableCell className="py-1 px-1"><Input className="h-7 text-xs w-[70px] text-right" type="number" value={l.rate || ''} onChange={e => updateLine(i, 'rate', e.target.value)} /></TableCell>
+                          <TableCell className="py-1 px-1"><Input className={`${COMPACT_INPUT} w-[120px]`} value={l.item_name || ''} onChange={e => updateLine(i, 'item_name', e.target.value)} placeholder="Item name" /></TableCell>
+                          <TableCell className="py-1 px-1"><Input className={`${COMPACT_INPUT} w-[60px]`} value={l.uom || ''} onChange={e => updateLine(i, 'uom', e.target.value)} /></TableCell>
+                          <TableCell className="py-1 px-1"><Input className={`${COMPACT_NUMBER} w-[70px]`} type="number" value={l.quantity || ''} onChange={e => updateLine(i, 'quantity', e.target.value)} /></TableCell>
+                          <TableCell className="py-1 px-1"><Input className={`${COMPACT_NUMBER} w-[60px]`} type="number" value={l.extra_pct || ''} onChange={e => updateLine(i, 'extra_pct', e.target.value)} /></TableCell>
+                          <TableCell className="py-1 px-1"><Input className={`${COMPACT_NUMBER} w-[70px]`} type="number" value={l.rate || ''} onChange={e => updateLine(i, 'rate', e.target.value)} /></TableCell>
                           <TableCell className="py-1 px-1 text-xs text-right font-medium">{(l.total_amount || 0).toFixed(2)}</TableCell>
                           <TableCell className="py-1 px-1">
                             <Select value={l.vendor_name || '__none__'} onValueChange={v => updateLine(i, 'vendor_name', v === '__none__' ? '' : v)}>
-                              <SelectTrigger className="h-7 text-xs w-[100px]"><SelectValue placeholder="—" /></SelectTrigger>
+                              <SelectTrigger className={`${COMPACT_INPUT} w-[100px]`}><SelectValue placeholder="—" /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="__none__">None</SelectItem>
                                 {(vendors ?? []).map((v: any) => <SelectItem key={v.id} value={v.name}>{v.name}</SelectItem>)}

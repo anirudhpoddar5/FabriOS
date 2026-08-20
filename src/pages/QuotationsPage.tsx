@@ -15,6 +15,7 @@ import { Plus, Search, Printer, FileDown, CheckSquare, X, Trash2, ShoppingCart, 
 import DataTablePagination from '@/components/DataTablePagination';
 import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
+import { COMPACT_INPUT, COMPACT_NUMBER } from '@/lib/compact-input';
 import { useQueryClient } from '@tanstack/react-query';
 import { printDetailPage } from '@/lib/pdf-export';
 import { createQuotationWithLines } from '@/lib/quotation-save';
@@ -407,7 +408,7 @@ export default function QuotationsPage() {
           <Input placeholder="Search quotations..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Select value={buyerFilter} onValueChange={setBuyerFilter}>
-          <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Buyer" /></SelectTrigger>
+          <SelectTrigger className={`${COMPACT_INPUT} h-9 w-[140px]`}><SelectValue placeholder="Buyer" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Buyers</SelectItem>
             {buyers.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
@@ -424,8 +425,8 @@ export default function QuotationsPage() {
             <SelectItem value="expired">Expired</SelectItem>
           </SelectContent>
         </Select>
-        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="From" />
-        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="To" />
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`${COMPACT_INPUT} h-9 w-[140px]`} placeholder="From" />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`${COMPACT_INPUT} h-9 w-[140px]`} placeholder="To" />
         <div className="flex gap-1">
           <Button size="sm" variant="ghost" onClick={printFiltered} title="Print"><Printer className="h-3.5 w-3.5" /></Button>
         </div>
@@ -576,19 +577,19 @@ export default function QuotationsPage() {
                     {lines.map((l, i) => (
                       <TableRow key={l.id}>
                         <TableCell className="py-1">
-                          <Input value={l.productId || ''} onChange={e => updateLine(i, 'productId', e.target.value)} placeholder="SKU" className="h-7 text-xs w-[60px]" />
+                          <Input value={l.productId || ''} onChange={e => updateLine(i, 'productId', e.target.value)} placeholder="SKU" className={`${COMPACT_INPUT} w-[60px]`} />
                         </TableCell>
                         <TableCell className="py-1">
-                          <Input value={l.description || ''} onChange={e => updateLine(i, 'description', e.target.value)} placeholder="Item description" className="h-7 text-xs w-[180px]" />
+                          <Input value={l.description || ''} onChange={e => updateLine(i, 'description', e.target.value)} placeholder="Item description" className={`${COMPACT_INPUT} w-[180px]`} />
                         </TableCell>
                         <TableCell className="py-1">
-                          <Input type="number" min={0} value={l.qty || ''} onChange={e => updateLine(i, 'qty', Number(e.target.value) || 0)} className="h-7 text-xs w-[70px] text-right" />
+                          <Input type="number" min={0} value={l.qty || ''} onChange={e => updateLine(i, 'qty', Number(e.target.value) || 0)} className={`${COMPACT_NUMBER} w-[70px]`} />
                         </TableCell>
                         <TableCell className="py-1">
-                          <Input value={l.uom || 'pcs'} onChange={e => updateLine(i, 'uom', e.target.value)} className="h-7 text-xs w-[50px]" />
+                          <Input value={l.uom || 'pcs'} onChange={e => updateLine(i, 'uom', e.target.value)} className={`${COMPACT_INPUT} w-[50px]`} />
                         </TableCell>
                         <TableCell className="py-1">
-                          <Input type="number" min={0} step={0.01} value={l.rate || ''} onChange={e => updateLine(i, 'rate', Number(e.target.value) || 0)} className="h-7 text-xs w-[80px] text-right" />
+                          <Input type="number" min={0} step={0.01} value={l.rate || ''} onChange={e => updateLine(i, 'rate', Number(e.target.value) || 0)} className={`${COMPACT_NUMBER} w-[80px]`} />
                         </TableCell>
                         <TableCell className="text-xs py-1 text-right font-medium">{(Number(l.amount) || 0).toFixed(2)}</TableCell>
                         <TableCell className="py-1">

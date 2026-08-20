@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { printDetailPage } from '@/lib/pdf-export';
 import { friendlyDeleteError } from '@/lib/delete-errors';
+import { COMPACT_INPUT, COMPACT_NUMBER } from '@/lib/compact-input';
 
 const GRN_STATUS_COLORS: Record<string, string> = {
   accepted: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -328,14 +329,14 @@ export default function GRNPage() {
           <Input placeholder="Search GRNs..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Select value={vendorFilter} onValueChange={setVendorFilter}>
-          <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Vendor" /></SelectTrigger>
+          <SelectTrigger className={`${COMPACT_INPUT} h-9 w-[140px]`}><SelectValue placeholder="Vendor" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Vendors</SelectItem>
             {vendors.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="From" />
-        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="To" />
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`${COMPACT_INPUT} h-9 w-[140px]`} placeholder="From" />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`${COMPACT_INPUT} h-9 w-[140px]`} placeholder="To" />
         <div className="flex gap-1">
           <Button size="sm" variant="ghost" onClick={printFiltered} title="Print filtered"><Printer className="h-3.5 w-3.5" /></Button>
         </div>
@@ -483,13 +484,13 @@ export default function GRNPage() {
                           <Input type="number" min={0} max={l.qty_ordered || 0}
                             value={l.qty_accepted || ''}
                             onChange={e => updateLine(i, 'qty_accepted', Number(e.target.value) || 0)}
-                            className="h-7 text-xs w-[80px] text-right" />
+                            className={`${COMPACT_NUMBER} w-[80px]`} />
                         </TableCell>
                         <TableCell className="py-1">
                           <Input type="number" min={0}
                             value={l.qty_rejected || ''}
                             onChange={e => updateLine(i, 'qty_rejected', Number(e.target.value) || 0)}
-                            className="h-7 text-xs w-[80px] text-right" />
+                            className={`${COMPACT_NUMBER} w-[80px]`} />
                         </TableCell>
                         <TableCell className="py-1">
                           <Select value={l.rejection_reason || '__none__'} onValueChange={v => updateLine(i, 'rejection_reason', v === '__none__' ? '' : v)}>
@@ -507,9 +508,9 @@ export default function GRNPage() {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className="py-1"><Input value={l.uom || 'meters'} onChange={e => { const u = [...lines]; u[i] = { ...l, uom: e.target.value }; setLines(u); }} className="h-7 text-xs w-[70px]" /></TableCell>
-                        <TableCell className="py-1"><Input value={l.lot_number || ''} onChange={e => { const u = [...lines]; u[i] = { ...l, lot_number: e.target.value }; setLines(u); }} className="h-7 text-xs w-[80px]" /></TableCell>
-                        <TableCell className="py-1"><Input value={l.batch_number || ''} onChange={e => { const u = [...lines]; u[i] = { ...l, batch_number: e.target.value }; setLines(u); }} className="h-7 text-xs w-[80px]" /></TableCell>
+                        <TableCell className="py-1"><Input value={l.uom || 'meters'} onChange={e => { const u = [...lines]; u[i] = { ...l, uom: e.target.value }; setLines(u); }} className={`${COMPACT_INPUT} w-[70px]`} /></TableCell>
+                        <TableCell className="py-1"><Input value={l.lot_number || ''} onChange={e => { const u = [...lines]; u[i] = { ...l, lot_number: e.target.value }; setLines(u); }} className={`${COMPACT_INPUT} w-[80px]`} /></TableCell>
+                        <TableCell className="py-1"><Input value={l.batch_number || ''} onChange={e => { const u = [...lines]; u[i] = { ...l, batch_number: e.target.value }; setLines(u); }} className={`${COMPACT_INPUT} w-[80px]`} /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

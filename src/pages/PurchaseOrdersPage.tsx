@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { printDetailPage } from '@/lib/pdf-export';
 import { friendlyDeleteError } from '@/lib/delete-errors';
+import { COMPACT_INPUT, COMPACT_NUMBER } from '@/lib/compact-input';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -235,7 +236,7 @@ export default function PurchaseOrdersPage() {
           <Input placeholder="Search POs..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Select value={vendorFilter} onValueChange={setVendorFilter}>
-          <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Vendor" /></SelectTrigger>
+          <SelectTrigger className={`${COMPACT_INPUT} h-9 w-[140px]`}><SelectValue placeholder="Vendor" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Vendors</SelectItem>
             {vendors.map((v: any) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
@@ -250,8 +251,8 @@ export default function PurchaseOrdersPage() {
             <SelectItem value="closed">Closed</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
-        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="From" />
-        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-9 w-[130px] text-xs" placeholder="To" />
+        <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={`${COMPACT_INPUT} h-9 w-[140px]`} placeholder="From" />
+        <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={`${COMPACT_INPUT} h-9 w-[140px]`} placeholder="To" />
         <div className="flex gap-1">
           <Button size="sm" variant="ghost" onClick={printFiltered} title="Print filtered"><Printer className="h-3.5 w-3.5" /></Button>
         </div>

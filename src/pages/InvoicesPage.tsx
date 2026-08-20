@@ -16,6 +16,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { toast } from 'sonner';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { printDetailPage } from '@/lib/pdf-export';
+import { COMPACT_INPUT, COMPACT_NUMBER } from '@/lib/compact-input';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-muted text-muted-foreground',
@@ -182,7 +183,7 @@ export default function InvoicesPage() {
           <Input placeholder="Search invoices..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
         </div>
         <Select value={buyerFilter} onValueChange={setBuyerFilter}>
-          <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Buyer" /></SelectTrigger>
+          <SelectTrigger className={`${COMPACT_INPUT} h-9 w-[140px]`}><SelectValue placeholder="Buyer" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Buyers</SelectItem>
             {buyers.map((b: any) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}

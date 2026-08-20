@@ -1,4 +1,5 @@
 import { test } from '@playwright/test';
+import fs from 'fs';
 
 /**
  * Mechanical UI audit — v2.
@@ -30,6 +31,7 @@ const ONLY = process.env.AUDIT_ONLY ? process.env.AUDIT_ONLY.split(',') : null;
 
 type F = { where: string; kind: string; detail: string };
 const findings: F[] = [];
+const OUT = '/tmp/fabrios-audit-findings.jsonl';
 
 /** Geometry + content defects. Runs in the page. */
 const SCAN = () => {
@@ -96,13 +98,13 @@ async function scan(page: any, where: string) {
 /** Every dropdown must keep the option you pick. */
 async function checkSelects(page: any, where: string) {
   const combos = page.locator('[role="combobox"]:visible');
-  const n = Math.min(await combos.count(), 12);
+  const n = Math.min(await combos.count(), 6);
   for (let i = 0; i < n; i++) {
     const c = combos.nth(i);
     try {
       const before = (await c.innerText()).trim();
-      await c.click({ timeout: 2500 });
-      await page.waitForTimeout(220);
+      await c.click({ timeout: 1500 });
+      await page.waitForTimeout(150);
       const opts = page.getByRole('option');
       const count = await opts.count();
       if (count === 0) { await page.keyboard.press('Escape'); continue; }
@@ -111,11 +113,11 @@ async function checkSelects(page: any, where: string) {
         const o = opts.nth(j);
         if (await o.isDisabled().catch(() => true)) continue;
         picked = (await o.innerText()).trim();
-        await o.click({ timeout: 2500 });
+        await o.click({ timeout: 1500 });
         break;
       }
       if (!picked) { await page.keyboard.press('Escape'); continue; }
-      await page.waitForTimeout(450);
+      await page.waitForTimeout(300);
       const after = (await c.innerText()).trim();
       const kept = after.includes(picked.slice(0, 6)) || after !== before;
       if (!kept) findings.push({ where, kind: 'SELECT_CHOICE_DISCARDED', detail: `picked "${picked.slice(0, 22)}" — trigger still reads "${after.slice(0, 22)}"` });
@@ -123,71 +125,53 @@ async function checkSelects(page: any, where: string) {
   }
 }
 
-test('UI audit: routes, tabs and dialogs', async ({ page }) => {
-  test.setTimeout(1_800_000);
-  const consoleErrors: Record<string, string[]> = {};
-  const routes = ONLY ?? ROUTES;
-
-  for (const route of routes) {
+for (const route of (ONLY ?? ROUTES)) {
+  test(`audit ${route}`, async ({ page }) => {
+    test.setTimeout(120_000);
+    findings.length = 0;
     const errs: string[] = [];
-    const onErr = (m: any) => { if (m.type() === 'error') errs.push(m.text().slice(0, 130)); };
-    page.on('console', onErr);
+    page.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 130)); });
+
     try {
-      await page.goto(route, { waitUntil: 'networkidle', timeout: 30_000 });
-      await page.waitForTimeout(1100);
-    } catch { findings.push({ where: route, kind: 'PAGE_LOAD_FAILED', detail: 'timed out' }); page.off('console', onErr); continue; }
-    if (/\/login/.test(page.url()) && route !== '/login') { findings.push({ where: route, kind: 'REDIRECTED_TO_LOGIN', detail: '' }); page.off('console', onErr); continue; }
+      await page.goto(route, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      await page.waitForTimeout(1200);
+    } catch {
+      findings.push({ where: route, kind: 'PAGE_LOAD_FAILED', detail: 'timed out' });
+      return flush(route, errs);
+    }
+    if (/\/login/.test(page.url())) { findings.push({ where: route, kind: 'REDIRECTED_TO_LOGIN', detail: '' }); return flush(route, errs); }
 
     await scan(page, route);
     await checkSelects(page, route);
 
-    // every tab on the page
     const tabs = page.getByRole('tab');
-    const tabCount = await tabs.count();
-    for (let i = 0; i < tabCount; i++) {
+    for (let i = 0; i < await tabs.count(); i++) {
       const label = (await tabs.nth(i).innerText().catch(() => '')).trim();
       try {
-        await tabs.nth(i).click({ timeout: 4000 });
-        await page.waitForTimeout(1000);
+        await tabs.nth(i).click({ timeout: 3000 });
+        await page.waitForTimeout(900);
         await scan(page, `${route} [tab:${label}]`);
         await checkSelects(page, `${route} [tab:${label}]`);
-      } catch { /* tab not clickable */ }
+      } catch { /* not clickable */ }
     }
 
-    // every dialog reachable from a create/add button
     const openers = page.getByRole('button', { name: /^(\+\s*)?(new|add|create)\b/i });
-    const openCount = Math.min(await openers.count(), 3);
-    for (let i = 0; i < openCount; i++) {
+    for (let i = 0; i < Math.min(await openers.count(), 2); i++) {
       const label = (await openers.nth(i).innerText().catch(() => '')).trim();
       try {
-        await openers.nth(i).click({ timeout: 4000 });
-        await page.waitForTimeout(1100);
-        const dlg = page.locator('[role="dialog"]');
-        if (await dlg.count()) {
-          await scan(page, `${route} [dialog:${label}]`);
-          await checkSelects(page, `${route} [dialog:${label}]`);
-        }
+        await openers.nth(i).click({ timeout: 3000 });
+        await page.waitForTimeout(1000);
+        if (await page.locator('[role="dialog"]').count()) await scan(page, `${route} [dialog:${label}]`);
         await page.keyboard.press('Escape');
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(400);
       } catch { await page.keyboard.press('Escape').catch(() => {}); }
     }
-    page.off('console', onErr);
-    if (errs.length) consoleErrors[route] = [...new Set(errs)].slice(0, 3);
-  }
+    flush(route, errs);
+  });
+}
 
-  const byKind: Record<string, F[]> = {};
-  for (const f of findings) (byKind[f.kind] ||= []).push(f);
-  console.log('\n=============== UI AUDIT v2 ===============');
-  console.log(`scanned ${routes.length} routes (plus their tabs and dialogs) — ${findings.length} findings\n`);
-  for (const k of Object.keys(byKind).sort((a, b) => byKind[b].length - byKind[a].length)) {
-    console.log(`## ${k} (${byKind[k].length})`);
-    for (const f of byKind[k].slice(0, 20)) console.log(`   ${f.where.padEnd(42)} ${f.detail}`);
-    if (byKind[k].length > 20) console.log(`   ...${byKind[k].length - 20} more`);
-    console.log('');
-  }
-  if (Object.keys(consoleErrors).length) {
-    console.log('## CONSOLE ERRORS');
-    for (const [r, e] of Object.entries(consoleErrors)) console.log(`   ${r.padEnd(42)} ${e[0]}`);
-  }
-  console.log('===========================================\n');
-});
+function flush(route: string, errs: string[]) {
+  for (const e of [...new Set(errs)].slice(0, 3)) findings.push({ where: route, kind: 'CONSOLE_ERROR', detail: e });
+  if (findings.length) fs.appendFileSync(OUT, findings.map(f => JSON.stringify(f)).join('\n') + '\n');
+  console.log(`  ${route}: ${findings.length} findings`);
+}

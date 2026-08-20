@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Trash2, Check, X, ClipboardPaste, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { GRID_INPUT, GRID_NUMBER } from '@/lib/compact-input';
 import { SaveButton } from '@/components/SaveButton';
 import { useFormDraft } from '@/hooks/use-form-draft';
 
@@ -24,14 +25,6 @@ export interface GridRow {
   rateBasis?: string;
   saveError?: string;
 }
-
-// The shared Input adds px-3 (24px) of horizontal padding, which in a ~70px grid cell
-// leaves less than one digit of visible text — typed numbers were stored but clipped out
-// of sight, which reads as "the field won't accept input". Also pin the font size: the
-// base component's md:text-sm overrides a bare text-[11px] on desktop.
-const GRID_INPUT = 'h-7 px-1 text-[11px] md:text-[11px]';
-// Numbers additionally drop the spinner arrows, which eat ~16px of a cell this narrow.
-const GRID_NUMBER = `${GRID_INPUT} text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`;
 
 function emptyRow(mod: 'printing' | 'stitching' = 'printing'): GridRow {
   return {
@@ -647,6 +640,9 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{rows.length} rows, {validCount} valid</span>
+            {validCount === 0 && blockingReasons.length === 0 && (
+              <span className="text-xs text-muted-foreground">— fill in a row to enable Save</span>
+            )}
             <span className="text-[10px] text-muted-foreground flex items-center gap-1"><ClipboardPaste className="h-3 w-3" /> Paste from Excel</span>
           </div>
           <div className="flex items-center gap-2">

@@ -22,6 +22,7 @@ import { ExplainerTip } from '@/components/ExplainerTip';
 import { getOrderBadge } from '@/lib/order-status';
 import { friendlyOrderDeleteError } from '@/lib/delete-errors';
 import { summariseOrderRows, EMPTY_ORDER_SUMMARY } from '@/lib/order-summary';
+import { COMPACT_INPUT, COMPACT_NUMBER } from '@/lib/compact-input';
 import { printDetailPage } from '@/lib/pdf-export';
 import { useFormDraft } from '@/hooks/use-form-draft';
 import { SaveButton } from '@/components/SaveButton';
@@ -409,7 +410,7 @@ export default function PrintingOrdersPage() {
               <SelectItem value="Shipped">Shipped</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={handleBulkDelete}>
+          <Button size="sm" variant="destructive" className={COMPACT_INPUT} onClick={handleBulkDelete}>
             <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
           </Button>
           <Button size="sm" variant="ghost" className="h-8 w-8 ml-auto" onClick={() => setSelectedIds(new Set())}>
@@ -577,25 +578,25 @@ export default function PrintingOrdersPage() {
                           <div className="space-y-1">
                             <Label className="text-[10px]">Product</Label>
                             <Select value={row.printingProductId || ''} onValueChange={v => updateRow(row.id, 'printingProductId', v)}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select product" /></SelectTrigger>
+                              <SelectTrigger className={COMPACT_INPUT}><SelectValue placeholder="Select product" /></SelectTrigger>
                               <SelectContent>{printProds.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.code} - {p.name}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px]">Fabric *</Label>
                             <Select value={row.fabricId || ''} onValueChange={v => updateRow(row.id, 'fabricId', v)}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select fabric" /></SelectTrigger>
+                              <SelectTrigger className={COMPACT_INPUT}><SelectValue placeholder="Select fabric" /></SelectTrigger>
                               <SelectContent>{fabrics.map(f => <SelectItem key={f.id} value={f.id}>{f.shortForm} - {f.name}</SelectItem>)}</SelectContent>
                             </Select>
                           </div>
-                          <div className="space-y-1"><Label className="text-[10px]">Width</Label><Input className="h-8 text-xs" value={row.fabricWidth || ''} onChange={e => updateRow(row.id, 'fabricWidth', e.target.value)} /></div>
-                          <div className="space-y-1"><Label className="text-[10px]">UOM</Label><Input className="h-8 text-xs" value={row.uom || ''} onChange={e => updateRow(row.id, 'uom', e.target.value)} /></div>
+                          <div className="space-y-1"><Label className="text-[10px]">Width</Label><Input className={COMPACT_INPUT} value={row.fabricWidth || ''} onChange={e => updateRow(row.id, 'fabricWidth', e.target.value)} /></div>
+                          <div className="space-y-1"><Label className="text-[10px]">UOM</Label><Input className={COMPACT_INPUT} value={row.uom || ''} onChange={e => updateRow(row.id, 'uom', e.target.value)} /></div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
-                          <div className="space-y-1"><Label className="text-[10px]">Order Qty</Label><Input className="h-8 text-xs" type="number" value={row.orderQty || ''} onChange={e => updateRow(row.id, 'orderQty', parseFloat(e.target.value) || 0)} /></div>
-                          <div className="space-y-1"><Label className="text-[10px]">Chart Qty</Label><Input className="h-8 text-xs" type="number" value={row.chartQty || ''} onChange={e => updateRow(row.id, 'chartQty', parseFloat(e.target.value) || 0)} /></div>
-                          <div className="space-y-1"><Label className="text-[10px]">Rate/Item</Label><Input className="h-8 text-xs" type="number" step="0.01" value={row.ratePerItem || ''} onChange={e => updateRow(row.id, 'ratePerItem', parseFloat(e.target.value) || 0)} /></div>
-                          <div className="space-y-1"><Label className="text-[10px]">No. of Colours</Label><Input className="h-8 text-xs" type="number" min={0} max={12} value={row.noOfColours || ''} onChange={e => updateRow(row.id, 'noOfColours', parseInt(e.target.value, 10) || 0)} /></div>
+                          <div className="space-y-1"><Label className="text-[10px]">Order Qty</Label><Input className={COMPACT_NUMBER} type="number" value={row.orderQty || ''} onChange={e => updateRow(row.id, 'orderQty', parseFloat(e.target.value) || 0)} /></div>
+                          <div className="space-y-1"><Label className="text-[10px]">Chart Qty</Label><Input className={COMPACT_NUMBER} type="number" value={row.chartQty || ''} onChange={e => updateRow(row.id, 'chartQty', parseFloat(e.target.value) || 0)} /></div>
+                          <div className="space-y-1"><Label className="text-[10px]">Rate/Item</Label><Input className={COMPACT_NUMBER} type="number" step="0.01" value={row.ratePerItem || ''} onChange={e => updateRow(row.id, 'ratePerItem', parseFloat(e.target.value) || 0)} /></div>
+                          <div className="space-y-1"><Label className="text-[10px]">No. of Colours</Label><Input className={COMPACT_NUMBER} type="number" min={0} max={12} value={row.noOfColours || ''} onChange={e => updateRow(row.id, 'noOfColours', parseInt(e.target.value, 10) || 0)} /></div>
                           <div className="space-y-1 flex items-end pb-1">
                             {row.orderQty > 0 && row.ratePerItem > 0 && (
                               <span className="text-xs font-medium text-muted-foreground">
@@ -611,7 +612,7 @@ export default function PrintingOrdersPage() {
                               <Label className="text-[10px] font-medium text-muted-foreground">Colours and quantities</Label>
                               {rowQtyMismatch && <span className="flex items-center gap-1 text-[9px] text-warning"><AlertTriangle className="h-2.5 w-2.5" /> Qty mismatch ({rowTotalCwQty} vs {row.orderQty})</span>}
                             </div>
-                            <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => addRowColour(row.id)}><Plus className="h-3 w-3 mr-1" /> Add Colour</Button>
+                            <Button size="sm" variant="ghost" className={COMPACT_INPUT} onClick={() => addRowColour(row.id)}><Plus className="h-3 w-3 mr-1" /> Add Colour</Button>
                           </div>
                           <div className="border rounded-md">
                             <Table>
@@ -625,10 +626,10 @@ export default function PrintingOrdersPage() {
                               <TableBody>
                                 {(row.colours || []).map((c: any) => (
                                   <TableRow key={c.id}>
-                                    <TableCell className="py-0.5"><Input className="h-6 text-[10px]" value={c.colourName} onChange={e => updateRowColour(row.id, c.id, 'colourName', e.target.value)} /></TableCell>
-                                    <TableCell className="py-0.5"><Input className="h-6 text-[10px] w-16" type="number" value={c.orderedQty || ''} onChange={e => updateRowColour(row.id, c.id, 'orderedQty', parseFloat(e.target.value) || 0)} /></TableCell>
-                                    <TableCell className="py-0.5"><Input className="h-6 text-[10px] w-16" value={c.uom} onChange={e => updateRowColour(row.id, c.id, 'uom', e.target.value)} /></TableCell>
-                                    <TableCell className="py-0.5"><Input className="h-6 text-[10px]" value={c.notes || ''} onChange={e => updateRowColour(row.id, c.id, 'notes', e.target.value)} /></TableCell>
+                                    <TableCell className="py-0.5"><Input className={COMPACT_INPUT} value={c.colourName} onChange={e => updateRowColour(row.id, c.id, 'colourName', e.target.value)} /></TableCell>
+                                    <TableCell className="py-0.5"><Input className={COMPACT_NUMBER} type="number" value={c.orderedQty || ''} onChange={e => updateRowColour(row.id, c.id, 'orderedQty', parseFloat(e.target.value) || 0)} /></TableCell>
+                                    <TableCell className="py-0.5"><Input className={COMPACT_INPUT} value={c.uom} onChange={e => updateRowColour(row.id, c.id, 'uom', e.target.value)} /></TableCell>
+                                    <TableCell className="py-0.5"><Input className={COMPACT_INPUT} value={c.notes || ''} onChange={e => updateRowColour(row.id, c.id, 'notes', e.target.value)} /></TableCell>
                                     <TableCell className="py-0.5">
                                       <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeRowColour(row.id, c.id)} disabled={(row.colours || []).length <= 1}>
                                         <Trash2 className="h-2.5 w-2.5 text-destructive" />
