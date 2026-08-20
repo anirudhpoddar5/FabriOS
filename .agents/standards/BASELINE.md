@@ -94,6 +94,16 @@ waiting on him.
   that fails if the logic breaks. See StitchLogic's `scripts/*-harness.mjs`.
 - Test failures fall into three recurring **non-bug** classes: network outage,
   expired session, latency flake. Establish which before chasing a defect.
+- **A green suite proves nothing until you prove the thing under test was
+  running.** *2026-08-20 (Ethica): a full-suite run reported "95 passed" and
+  exit 0 with the dev server not running at all.* Two faults, either sufficient
+  alone — nothing checked the server was up, and `run_tests.sh 2>&1 | tail -60`
+  reports the exit status of `tail`, not of the runner. Before trusting a
+  browser-suite result: curl the base URL, and read the backend ref the server
+  actually injected rather than the name of the launch config that started it.
+- **A count of tests that "did not run" is a failed run, whatever the exit code
+  says.** So is a runtime far below the suite's usual. Both were on screen in
+  the case above, underneath the word "passed".
 
 ---
 

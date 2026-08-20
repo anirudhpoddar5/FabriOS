@@ -15,6 +15,11 @@ import { test, expect, Page } from '@playwright/test';
    ═══════════════════════════════════════════════════════════════ */
 
 const BASE = 'http://localhost:8080';
+
+// This spec signs up a brand-new user, so it must start logged OUT. Without this it
+// inherits the project's saved session, /login redirects to the dashboard, and step
+// 1.01 times out looking for a signup form that was never rendered.
+test.use({ storageState: { cookies: [], origins: [] } });
 const TS = Date.now().toString(36).slice(-4);
 const RUN = `ZP${TS}`;
 
@@ -32,7 +37,9 @@ async function noError(page: Page) {
 }
 
 async function fillByLabel(page: Page, label: string, value: string) {
-  const el = page.locator(`div:has(> label:text-is("${label}")) input`).first();
+  // Required labels carry a trailing " *", so an exact match never found them.
+  // has-text does substring matching, which handles both forms.
+  const el = page.locator(`div:has(> label:has-text("${label}")) input`).first();
   await el.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
   await el.clear();
   await el.fill(value);
@@ -252,9 +259,11 @@ test.describe('Section 2 — Master Data', () => {
     await authGoto(page, `${BASE}/settings/workers-rates`);
     await page.waitForTimeout(2000);
 
-    const rateTab = page.getByRole('tab', { name: /rate/i });
-    if (await rateTab.isVisible().catch(() => false)) await rateTab.click();
-    await page.waitForTimeout(500);
+    // No tabs on this page: the rates panel appears only once a worker TYPE is
+    // selected in the left-hand list. The old selector waited for a tab that has
+    // never existed here, so this step could not pass regardless of the app.
+    await page.getByRole('row', { name: new RegExp(S.workerTypeName) }).first().click();
+    await page.waitForTimeout(600);
 
     await clickVisible(page, /add rate/i);
     await page.waitForTimeout(500);
@@ -263,7 +272,7 @@ test.describe('Section 2 — Master Data', () => {
     await selectShadcn(page, 'Worker Type', new RegExp(S.workerTypeName));
     await selectShadcn(page, 'Shift', new RegExp(S.shiftCode));
     await fillByLabel(page, 'Rate Value', '250');
-    await fillByLabel(page, 'Effective From', '2026-01-01');
+    await fillByLabel(page, 'From', '2026-01-01');
 
     await page.getByRole('button', { name: /save/i }).click();
     await page.waitForTimeout(2000);
