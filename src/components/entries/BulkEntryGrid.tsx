@@ -244,14 +244,21 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
     let rateBasis: string | undefined;
     if (currentFactoryId && row.shiftId && row.workerTypeId && row.date) {
       const rate = findRate(data.rateMasters, currentFactoryId, row.shiftId, row.workerTypeId, row.date);
-      if (!rate) errors.push('No active rate');
+      if (!rate) errors.push('No rate set for this factory + shift + worker type on this date');
       else {
         rateBasis = rate.rateBasis;
         costPreview = rate.rateBasis === 'per_person_per_shift' ? row.personsUsed * rate.rateValue : row.outputQty * rate.rateValue;
       }
     }
     const cw = getColourwayOptions(row.orderId, row.module).find(c => c.id === row.colourwayId);
-    return { ...row, valid: errors.length === 0, errors, costPreview, rateBasis, orderRowId: cw?.orderRowId || '', productLabel: cw?.productLabel || '' };
+    // Keep a product the user picked directly. This used to be `cw?.orderRowId || ''`,
+    // which wiped the selection on every keystroke until a colour was chosen — the
+    // product only "appeared" once you picked a colour, because that back-filled it.
+    return {
+      ...row, valid: errors.length === 0, errors, costPreview, rateBasis,
+      orderRowId: cw?.orderRowId || row.orderRowId || '',
+      productLabel: cw?.productLabel || row.productLabel || '',
+    };
   }, [allOrders, currentFactoryId, data.rateMasters, getColourwayOptions]);
 
   const updateRow = (id: string, field: string, value: any) => {
@@ -259,7 +266,12 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
       if (r.id !== id) return r;
       const updated = { ...r, [field]: value };
       if (field === 'module') { updated.orderId = ''; updated.colourwayId = ''; updated.resourceId = ''; updated.workerTypeId = ''; }
-      if (field === 'orderId') { updated.colourwayId = ''; loadOrderRows(value, updated.module); }
+      if (field === 'orderId') { updated.orderRowId = ''; updated.productLabel = ''; updated.colourwayId = ''; loadOrderRows(value, updated.module); }
+      // changing the product invalidates any colour picked under the previous one
+      if (field === 'orderRowId') {
+        updated.colourwayId = '';
+        updated.productLabel = (orderRowsCache[updated.orderId] || []).find((rr: any) => rr.id === value)?.productLabel || '';
+      }
       return { ...validateRow(updated), saveError: undefined };
     }));
   };
@@ -294,6 +306,11 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
   };
 
   const validCount = rows.filter(r => r.valid).length;
+  // The row's ✗ carries its reason in a title tooltip on a 14px icon — effectively
+  // invisible. Surface the distinct reasons for every started row instead.
+  const blockingReasons = validCount === 0
+    ? [...new Set(rows.filter(r => r.orderId || r.shiftId).flatMap(r => r.errors))]
+    : [];
   const totalCost = rows.reduce((s, r) => s + r.costPreview, 0);
   const totalOutput = rows.reduce((s, r) => s + r.outputQty, 0);
 
@@ -613,6 +630,18 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
           <Alert variant="destructive" className="py-2 mb-3">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-sm">Please select a factory from the header dropdown first.</AlertDescription>
+          </Alert>
+        )}
+        {blockingReasons.length > 0 && (
+          <Alert variant="destructive" className="py-2 mb-3">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              <span className="font-medium">Nothing can be saved yet.</span>{' '}
+              {blockingReasons.join('. ')}.
+              {blockingReasons.some(r => r.startsWith('No rate set')) && (
+                <> Add one under <span className="font-medium">Settings → Workers &amp; Rates</span> for the factory selected in the header.</>
+              )}
+            </AlertDescription>
           </Alert>
         )}
         <div className="flex items-center justify-between mb-3">

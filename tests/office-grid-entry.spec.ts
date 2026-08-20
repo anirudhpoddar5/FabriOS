@@ -85,3 +85,45 @@ test('Persons and Output accept typed numbers and show them legibly', async ({ p
   // and the grid's own total must agree with what was typed
   await expect(page.locator('tr', { hasText: 'Totals:' })).toContainText('300');
 });
+
+test('selecting a Product sticks, and does not need a Colour chosen first', async ({ page }) => {
+  await page.goto('/entries');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('tab', { name: 'Office Grid' }).click();
+  await page.waitForTimeout(1000);
+
+  const combos = page.locator('table [role="combobox"]');
+  const order = combos.nth(1);     // Date | Module | Order | Product | Colour | ...
+  const product = combos.nth(3);
+
+  await order.click();
+  await page.getByRole('option', { name: 'GRIDTEST-0001' }).click();
+  await page.waitForTimeout(900);   // order rows load
+
+  // pick a product with NO colour selected yet
+  await product.click();
+  const opt = page.getByRole('option').first();
+  const chosen = (await opt.innerText()).trim();
+  await opt.click();
+  await page.waitForTimeout(500);
+
+  // it must still be selected — it used to be wiped instantly by validateRow
+  await expect(product, 'the chosen product was cleared as soon as it was picked').toContainText(chosen.slice(0, 8));
+});
+
+test('a row that cannot be saved says why, visibly', async ({ page }) => {
+  await page.goto('/entries');
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('tab', { name: 'Office Grid' }).click();
+  await page.waitForTimeout(1000);
+
+  const combos = page.locator('table [role="combobox"]');
+  await combos.nth(1).click();
+  await page.getByRole('option', { name: 'GRIDTEST-0001' }).click();
+  await page.waitForTimeout(900);
+
+  // an incomplete row must explain itself in the page, not only in a tooltip
+  const alert = page.getByText(/Nothing can be saved yet/i);
+  await expect(alert, 'no visible explanation of why the row is invalid').toBeVisible();
+  await expect(page.locator('body')).toContainText(/required|No rate set/i);
+});
