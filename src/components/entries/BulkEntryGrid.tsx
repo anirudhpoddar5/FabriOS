@@ -25,6 +25,14 @@ export interface GridRow {
   saveError?: string;
 }
 
+// The shared Input adds px-3 (24px) of horizontal padding, which in a ~70px grid cell
+// leaves less than one digit of visible text — typed numbers were stored but clipped out
+// of sight, which reads as "the field won't accept input". Also pin the font size: the
+// base component's md:text-sm overrides a bare text-[11px] on desktop.
+const GRID_INPUT = 'h-7 px-1 text-[11px] md:text-[11px]';
+// Numbers additionally drop the spinner arrows, which eat ~16px of a cell this narrow.
+const GRID_NUMBER = `${GRID_INPUT} text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`;
+
 function emptyRow(mod: 'printing' | 'stitching' = 'printing'): GridRow {
   return {
     id: generateId(), date: new Date().toISOString().slice(0, 10), module: mod,
@@ -628,8 +636,8 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
                 <TableHead className="text-[10px] h-8 min-w-[110px]">Shift</TableHead>
                 <TableHead className="text-[10px] h-8 min-w-[110px]">Resource</TableHead>
                 <TableHead className="text-[10px] h-8 min-w-[110px]">Worker Type</TableHead>
-                <TableHead className="text-[10px] h-8 min-w-[70px]">Persons</TableHead>
-                <TableHead className="text-[10px] h-8 min-w-[70px]">Output</TableHead>
+                <TableHead className="text-[10px] h-8 min-w-[80px]">Persons</TableHead>
+                <TableHead className="text-[10px] h-8 min-w-[80px]">Output</TableHead>
                 <TableHead className="text-[10px] h-8 min-w-[80px]">Cost</TableHead>
                 <TableHead className="text-[10px] h-8 w-[60px]">Status</TableHead>
                 <TableHead className="text-[10px] h-8 w-[40px]"></TableHead>
@@ -640,7 +648,7 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
                 const cwGroups = colourwayOptionsForRow(row);
                 return (
                   <TableRow key={row.id} className={row.saveError || (row.errors.length > 0 && (row.orderId || row.shiftId)) ? 'bg-destructive/5' : ''}>
-                    <TableCell className="py-1"><Input className="h-7 text-[11px]" type="date" value={row.date} onChange={e => updateRow(row.id, 'date', e.target.value)} /></TableCell>
+                    <TableCell className="py-1"><Input className={GRID_INPUT} type="date" value={row.date} onChange={e => updateRow(row.id, 'date', e.target.value)} /></TableCell>
                     <TableCell className="py-1">
                       <Select value={row.module} onValueChange={v => updateRow(row.id, 'module', v)}>
                         <SelectTrigger className="h-7 text-[11px]"><SelectValue /></SelectTrigger>
@@ -716,9 +724,9 @@ export default function BulkEntryGrid({ defaultModule, mode = 'office' }: Props)
                         <SelectContent>{filteredWorkerTypes(row.module).map(w => <SelectItem key={w.id} value={w.id}>{workerLabel(w)}</SelectItem>)}</SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="py-1"><Input className="h-7 text-[11px]" type="number" min={0} value={row.personsUsed} onChange={e => updateRow(row.id, 'personsUsed', parseInt(e.target.value) || 0)} /></TableCell>
+                    <TableCell className="py-1"><Input className={GRID_NUMBER} type="number" min={0} value={row.personsUsed} onChange={e => updateRow(row.id, 'personsUsed', parseInt(e.target.value) || 0)} /></TableCell>
                     <TableCell className="py-1">
-                      <Input className="h-7 text-[11px]" type="number" min={0} value={row.outputQty} onChange={e => updateRow(row.id, 'outputQty', parseFloat(e.target.value) || 0)} />
+                      <Input className={GRID_NUMBER} type="number" min={0} value={row.outputQty} onChange={e => updateRow(row.id, 'outputQty', parseFloat(e.target.value) || 0)} />
                       {row.rateBasis === 'per_person_per_shift' && (
                         <div className="text-[9px] text-muted-foreground mt-0.5 leading-none">n/a — per-person rate</div>
                       )}

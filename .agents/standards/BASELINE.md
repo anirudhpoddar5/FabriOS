@@ -132,3 +132,69 @@ Log the outcome as a dated line here so staleness stays visible.
 - 2026-08-10 — Files created. Folded the former `ENGINEERING.md` into this file
   and `PRODUCT-TRIO.md`; switched from link-only to synced committed copies
   because cloud sessions cannot read outside their repo.
+
+## A comment claiming a safety property is a claim, not evidence
+
+Added 19 Aug 2026 after this pattern cost real time five times in one day, across
+two products.
+
+`20260819000010` carried a comment asserting that a branch of
+`protect_profile_privileged_fields()` was NULL-safe. It was not — `IS DISTINCT
+FROM` returns TRUE, not NULL, when one side is NULL, so every server-side role
+change was failing under service-role. The next migration copied the branch
+verbatim, trusting the comment, and inherited the bug.
+
+**A comment that asserts a safety property the code does not have is worse than
+no comment**, because it converts "I should check this" into "someone already
+checked this".
+
+The same shape in three other forms the same day:
+
+- A filtered search reported as exhaustive. `grep` over `*compliance*.sql` found
+  no write policies on a shared table and was reported as "Ethica has none" — they
+  existed, in a file named differently. **The catalogue is the answer to "does this
+  policy exist", never a filename pattern.**
+- A cause inferred from reading a diff, twice, and wrong both times. **Only
+  reverting the suspected file and re-running settles a failure's cause.**
+- A verification run against a path the tool does not write to, then reported as
+  proof of no damage.
+
+**The rule:** when you write a comment claiming something is safe, name what you
+ran to establish it. When you read one, treat it as a claim by someone who may
+have been as busy as you are. And when you fix one branch of a guard, test the
+branches you did not change — on 19 Aug that turned three assertions into nine,
+and six of them had never been run.
+
+## After you edit a test, an improving number is as much a signal as a worsening one
+
+Recorded 20 Aug 2026 from a real incident, because it is the one direction
+everything else in this file does not guard.
+
+Three full runs of the same 59 tests: **46 pass / 10 fail**, then **55 / 1**, then
+**54 / 2**. Between the first and second, the agent corrected several tests that
+were asserting behaviour shipped earlier that day. One correction relaxed an
+assertion far enough that a **real product bug** passed through it — a negative
+balance shown when a factory over-produces. Nothing errored. The suite simply got
+greener.
+
+**The number improved because the measuring instrument got weaker.**
+
+What the agent did next is the behaviour worth copying: **it treated its own
+improvement as suspicious.** It had changed tests, the count moved the right way,
+and instead of banking it, it went back and asked which of its edits could have
+caused it. It found the one, reverted it, and reported **54/2 — a worse number it
+could defend over a better one it could not.**
+
+**The rule: after you edit a test, a failure count that improves deserves exactly
+the same scrutiny as one that worsens — and it is the more dangerous of the two,
+because a red run gets investigated and a green one gets shipped.**
+
+**The caveat, so this is not applied where it cannot bite:** it only applies when
+the *same* pass both edits tests and reports a number. An agent that only runs
+tests cannot cause it. The trigger is precisely *"I changed the measuring
+instrument and the measurement improved."*
+
+Everything else recorded this week guards the opposite direction — stale claims,
+colliding runs, causes inferred from a diff — all of which make a run look worse
+than the truth, or make a green run meaningless. This one makes a green run
+actively misleading.
