@@ -5,20 +5,39 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Search, ArrowLeft, Printer, Scissors, ClipboardList, BarChart3, Settings, Truck, FileText, Package, HelpCircle, UserCircle, Factory } from 'lucide-react';
 
-const articles = [
+type Article = { id: string; icon: any; title: string; desc: string; section: string; body?: string[] };
+
+const articles: Article[] = [
   { id: 'getting-started', icon: HelpCircle, title: 'Getting Started', desc: 'Create your account, set up your company, and configure master data.', section: 'Basics' },
   { id: 'factories-shifts', icon: Factory, title: 'Factories & Shifts', desc: 'Add factories, configure shifts with start/end times.', section: 'Settings' },
-  { id: 'workers-rates', icon: UserCircle, title: 'Workers & Rate Masters', desc: 'Define worker types, set rate bases (per person or per piece), and manage rate history.', section: 'Settings' },
+  { id: 'workers-rates', icon: UserCircle, title: 'Workers & Rate Masters', desc: 'Define worker types, set rate bases (per person or per piece), and manage rate history.', section: 'Settings', body: [
+    'A rate belongs to one factory, one shift and one worker type, and applies from its effective-from date onwards. Production cannot be logged for a combination that has no rate, so add a rate for every factory you actually work in.',
+    'If production entries suddenly refuse to save, check the factory selected in the top bar. Rates added for one factory do not apply to another.',
+  ] },
   { id: 'buyers', icon: UserCircle, title: 'Buyers', desc: 'Manage buyer contacts, codes, and countries.', section: 'Settings' },
   { id: 'fabrics', icon: Printer, title: 'Fabrics', desc: 'Add fabric types with GSM, width, and short form codes.', section: 'Settings' },
   { id: 'printing-products', icon: Printer, title: 'Printing Products', desc: 'Define standard printing products with sizes and UOM.', section: 'Settings' },
   { id: 'stitching-products', icon: Scissors, title: 'Stitching Products', desc: 'Define stitching products with size specifications.', section: 'Settings' },
-  { id: 'printing-tables', icon: Printer, title: 'Printing Tables', desc: 'Configure printing table resources per factory.', section: 'Settings' },
+  { id: 'printing-tables', icon: Printer, title: 'Printing Tables', desc: 'Configure printing table resources per factory.', section: 'Settings', body: [
+    'Rows are grouped under a heading for each factory, with a count, so one factory\u2019s tables read together instead of being mixed in with another\u2019s.',
+    'Every settings list can also be sorted: click a column heading to sort by it, click again to reverse. This works on Buyers, Fabrics, Vendors, Workers, Rates and the product lists too.',
+  ] },
   { id: 'stitching-lines', icon: Scissors, title: 'Stitching Lines', desc: 'Configure stitching line resources per factory.', section: 'Settings' },
-  { id: 'printing-orders', icon: Printer, title: 'Printing Orders', desc: 'Create printing orders with colourways, fabrics, and quantity tracking.', section: 'Orders' },
+  { id: 'printing-orders', icon: Printer, title: 'Printing Orders', desc: 'Create printing orders with colourways, fabrics, and quantity tracking.', section: 'Orders', body: [
+    'The Product, Fabric and Qty columns summarise all of an order\u2019s line rows. An order with two products shows both, and the quantity is their total. The monthly sub-totals and the page total use the same figures, as do the CSV and print exports.',
+    'Deleting an order removes its rows and colourways with it. If the order already has production entries, dispatches, a BOM or purchase orders against it, the delete is refused and a message tells you what is linked. That is deliberate: deleting would destroy production history. Set the order to Cancelled instead.',
+  ] },
   { id: 'stitching-orders', icon: Scissors, title: 'Stitching Orders', desc: 'Create stitching orders with colourways and production specs.', section: 'Orders' },
-  { id: 'order-detail', icon: FileText, title: 'Order Detail Page', desc: 'View order info, colourways, and linked production entries.', section: 'Orders' },
-  { id: 'entries', icon: ClipboardList, title: 'Production Entries', desc: 'Log daily production with order, colourway, shift, resource, and worker. View auto-calculated labour costs.', section: 'Production' },
+  { id: 'order-detail', icon: FileText, title: 'Order Detail Page', desc: 'View order info, colourways, and linked production entries.', section: 'Orders', body: [
+    'To mark an order Started, Completed, Shipped or Cancelled, use the status dropdown next to the order number at the top of this page. You can also tick orders in the list and use Change status to update several at once.',
+    'The Status column in the order list is not the same thing. It is calculated from your production entries and dates: Not Started means nothing has been logged, WIP means work is in progress, and Delayed means the target date has passed. That is why it can differ from the status you set by hand.',
+  ] },
+  { id: 'entries', icon: ClipboardList, title: 'Production Entries', desc: 'Log daily production with order, colourway, shift, resource, and worker. View auto-calculated labour costs.', section: 'Production', body: [
+    'There are four tabs. Entry List shows what has already been logged. Single Entry is one entry at a time. Quick Entry is a large-button layout for the shop floor. Office Grid is a spreadsheet-style grid for logging many rows at once, and accepts a paste straight from Excel.',
+    'In the Office Grid, fill a row left to right: date, module, order, product, colour, shift, resource, worker type, then persons and output. Choose the product before the colour — the colour list is filtered to the product you picked.',
+    'A row only counts towards "Save N Entries" once every field is filled AND a rate exists for that combination. If nothing can be saved, a red message above the grid names the exact reason.',
+    'The most common reason is "No rate set for this factory + shift + worker type on this date". Rates are per factory. If you switch the factory in the top bar to one that has no rates yet, every row will be blocked until you add them under Settings, Workers and Rates.',
+  ] },
   { id: 'bulk-entries', icon: ClipboardList, title: 'Bulk Entry', desc: 'Multi-row entry with clipboard paste support for rapid data entry.', section: 'Production' },
   { id: 'stock-jobs', icon: Package, title: 'Stock Jobs', desc: 'Create production jobs not linked to customer orders.', section: 'Production' },
   { id: 'dispatch', icon: Truck, title: 'Dispatch', desc: 'Record dispatches against orders with available balance validation.', section: 'Logistics' },
@@ -86,7 +105,9 @@ export default function HelpPage() {
               </div>
               <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
                 <p>{article.desc}</p>
-                <p>Navigate to the <strong>{article.title}</strong> section from the sidebar to get started. All master data pages use a consistent pattern: click <strong>Add</strong> to create a new record, click a row to edit, and use the search bar to filter the table.</p>
+                {article.body
+                  ? article.body.map((para, i) => <p key={i}>{para}</p>)
+                  : <p>Navigate to the <strong>{article.title}</strong> section from the sidebar to get started. All master data pages use a consistent pattern: click <strong>Add</strong> to create a new record, click a row to edit, and use the search bar to filter the table.</p>}
                 <p>Need more help? Contact support at support@fabrios.app.</p>
               </div>
             </div>
