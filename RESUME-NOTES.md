@@ -1,47 +1,60 @@
 # Resume notes — FabriOS (2026-08-20)
 
-## STOP POINT — resume here
-
-Everything is stopped. No processes running. Working tree committed; `main` is
-pushed through `0913749`, with `2002cb5` committed locally after it.
-
-### The one instruction that governs the next session
-
-**No new features. Make the existing tool work.** Billing (recording a supplier
-bill against a PO) is a real gap in the process chain but is explicitly DEFERRED —
-do not build it, do not propose it again until the current tool is proven to work
-end to end.
-
-### Where the end-to-end proof got to
+## STATE: the tool is proven to work end to end
 
 `npx playwright test zero-to-production-pipeline --project=chromium --workers=1`
+→ **24/24 passing, twice in a row.**
 
-This is the real test of whether the tool works: 23 steps, signup through to
-reports and persistence. **It had never been able to run.** It signs up a new
-user but inherited the saved logged-in session, so step 1 always timed out and
-the other 22 were skipped — 816 lines that looked like coverage and proved
-nothing.
+Signup → company setup → module select → factory, shift, worker type, rate master,
+buyer, fabric, product, printing table, vendor → printing order → BOM → PO generated
+from that BOM → GRN → production entry → dispatch → stock job → inventory inward →
+reports → log out, log back in, data still there.
 
-Now reaches **8 passing steps**, all against the real UI:
-signup -> setup wizard -> module select -> factory -> shift -> worker type ->
-**rate master**.
+This spec had **never once run** before today: it signs up a new user but inherited a
+logged-in session, so step 1 always timed out and the other 22 were skipped. 816 lines
+that looked like coverage and proved nothing.
 
-Stops at **2.05 create buyer** (`locator.clear` timeout). Every failure found so
-far has been a stale selector in the test, NOT an app defect. Expect the same
-here, but verify rather than assume — the remaining steps (order, BOM, PO, GRN,
-production entry, dispatch, stock, reports, persistence) are the ones that
-actually matter and none has been exercised yet.
+### Everything currently green
+| Check | Result |
+|---|---|
+| `npx vitest run` | 133/133 |
+| `npm run build` | clean |
+| `npx playwright test zero-to-production-pipeline` | 24/24 (×2) |
+| `npx playwright test order-fixes office-grid-entry` | 10/10 |
+| `npx playwright test ui-audit` | 31/31, **0 findings across 30 routes** |
 
-**Method that works:** run it, read the failing step, open the page's real markup,
-decide test-vs-app on evidence, fix, re-run. Do not batch-fix selectors blind.
+### The instruction that still governs
+**No new features. Prove and repair what exists.** Supplier-bill entry is a real gap in
+the process chain and is DEFERRED — do not build or re-propose it.
 
-### Watch out
-- Each full run signs up a new user and creates a company. Clean up afterwards or
-  the database refills with junk (it had 20 companies from exactly this).
-  Keep only **Poddar Exports** (live) and **FabriOS Test Co** (test).
-- BASELINE: after editing a test, an improving number needs the same scrutiny as
-  a worsening one. Several of today's fixes were test-side; each was checked for
-  whether it weakened an assertion.
+### Every pipeline failure was a stale test, not an app defect
+Corrected: inherited session; `text-is()` never matching a required label (`Name *`);
+`.first()` picking "Bulk Add" over "Add"; dropdowns searched by code where the app lists
+names, and by style where it lists the internal PO; the order dialog labels are
+"Customer *" and "Style / Design *"; the rate dialog has no Worker Type field; the
+dispatch assertion looked for a vehicle number in a list with no vehicle column; a fixed
+3s re-login wait that flaked under load; the guided-tour flag set after navigation.
+
+**Three helpers were made stricter, and that is what exposed the rest:** `selectShadcn`
+now throws instead of silently skipping (2.04 had been passing only because the app
+auto-selects when one option exists), `noError` fails on an on-screen refusal toast, and
+`checkToast` fails when no confirmation appears — it had been looking for markup sonner
+does not emit and silently verified nothing on five steps.
+
+Only one assertion is looser, because the old one was wrong: 1.01 demanded the setup
+wizard, but the app deliberately shows "Your account has been created!" and may or may
+not have advanced past it.
+
+### Two real observations about the app — noted, not fixed
+1. The **guided tour overlay covers the header** while open; Sign out is unreachable
+   until it is dismissed.
+2. **Where a new user lands after signup varies** (confirmation screen / wizard /
+   module select) depending on how fast the session activates.
+
+### Housekeeping — do not skip
+Each pipeline run creates a company and a login. **`npm run clean:test`** (dry run) and
+`npm run clean:test -- --execute`. It keeps only **Poddar Exports** (live) and
+**FabriOS Test Co** (test). Currently clean: exactly those two.
 
 ## Live blocker for the owner (data, not code)
 

@@ -79,8 +79,12 @@ const SCAN = () => {
   });
 
   // an action the user cannot take, with nothing on screen saying why
-  const alertText = Array.from(document.querySelectorAll('[role=alert],.text-destructive'))
-    .map(e => (e as HTMLElement).innerText || '').join(' ');
+  // Guidance counts whether it is a destructive alert or quiet helper text — the
+  // question is only whether the user is told what to do, not how loudly.
+  const alertText = Array.from(document.querySelectorAll('[role=alert],.text-destructive,.text-muted-foreground'))
+    .map(e => (e as HTMLElement).innerText || '')
+    .filter(t => /required|no rate|fill|select|add |choose|first/i.test(t))
+    .join(' ');
   document.querySelectorAll('button').forEach(el => {
     const e = el as HTMLButtonElement;
     if (!vis(e) || !e.disabled) return;
