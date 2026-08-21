@@ -14,7 +14,8 @@
     "deploy": "npx wrangler pages deploy",
     "deploy:dry": "npx wrangler pages deploy --dry-run",
     "backup": "node scripts/backup-data.mjs",
-    "seed:test": "node scripts/seed-test-company.mjs"
+    "seed:test": "node scripts/seed-test-company.mjs",
+    "clean:test": "node scripts/clean-test-data.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

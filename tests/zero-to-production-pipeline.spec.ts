@@ -30,6 +30,13 @@ function unique(s: string) { return `${s}-${RUN}`; }
 const PROJECT_ID = 'ejebukxlwgwebjgdicyb';
 
 async function noError(page: Page) {
+  // A refusal toast ("... is required", "was not saved") used to go unnoticed here,
+  // so the run failed later at an assertion that looked unrelated.
+  const toast = page.locator('[data-sonner-toast]');
+  if (await toast.first().isVisible({ timeout: 1500 }).catch(() => false)) {
+    const t = (await toast.first().innerText().catch(() => '')) || '';
+    expect(t, `blocked by an on-screen message: "${t.trim()}"`).not.toMatch(/required|not saved|failed|error/i);
+  }
   const body = await page.locator('body').innerText().catch(() => '');
   expect(body).not.toContain('Application error');
   expect(body).not.toContain('Something went wrong');
@@ -46,30 +53,67 @@ async function fillByLabel(page: Page, label: string, value: string) {
 }
 
 async function selectShadcn(page: Page, label: string, optionText: string | RegExp) {
-  const trigger = page.locator(`label:text-is("${label}")`).locator('..').locator('[role="combobox"]').first();
-  if (!(await trigger.isVisible({ timeout: 3000 }).catch(() => false))) return;
+  // text-is() never matched a required label ("Factory" vs "Factory *"), and the
+  // early return meant the field was silently left unset — the step then failed
+  // later, or worse, saved an incomplete record.
+  const trigger = page.locator(`label:has-text("${label}")`).locator('..').locator('[role="combobox"]').first();
+  if (!(await trigger.isVisible({ timeout: 3000 }).catch(() => false))) {
+    throw new Error(`No dropdown found for label "${label}"`);
+  }
   await trigger.click({ force: true, timeout: 3000 });
   await page.waitForTimeout(400);
   const option = page.getByRole('option', { name: optionText }).first();
-  if (await option.isVisible({ timeout: 5000 }).catch(() => false)) await option.click();
+  if (!(await option.isVisible({ timeout: 5000 }).catch(() => false))) {
+    const offered = await page.getByRole('option').allInnerTexts().catch(() => []);
+    await page.keyboard.press('Escape');          // never leave the list covering the page
+    throw new Error(`No option matching ${optionText} under "${label}". Offered: ${offered.join(' | ') || '(none)'}`);
+  }
+  await option.click();
   await page.waitForTimeout(300);
 }
 
 async function clickVisible(page: Page, text: string | RegExp) {
-  const btn = page.getByRole('button', { name: text }).first();
-  await btn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-  await btn.click();
+  // Pages carry both "Add" and "Bulk Add". Taking .first() opened whichever sat
+  // earlier in the DOM — often the bulk screen, which has none of the fields the
+  // step then tries to fill. Prefer the shortest matching label, i.e. the most
+  // specific one.
+  const all = page.getByRole('button', { name: text });
+  await all.first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+  const n = await all.count();
+  let best = all.first(); let bestLen = Infinity;
+  for (let i = 0; i < n; i++) {
+    const c = all.nth(i);
+    if (!await c.isVisible().catch(() => false)) continue;
+    const label = ((await c.innerText().catch(() => '')) || '').trim();
+    if (label.length < bestLen) { bestLen = label.length; best = c; }
+  }
+  await best.click();
 }
 
 async function checkToast(page: Page, text: string) {
-  const toast = page.locator('[role="status"], .sonner-toast').first();
+  const toast = page.locator('[data-sonner-toast]').first();
   const ok = await toast.isVisible({ timeout: 15000 }).catch(() => false);
-  if (!ok) { console.log(`⚠️ No toast (expected "${text}")`); return; }
+  if (!ok) throw new Error(`No confirmation shown; expected a toast containing "${text}"`);
   const t = await toast.textContent().catch(() => '');
   expect(t.toLowerCase()).toContain(text.toLowerCase());
 }
 
+// The guided tour renders an overlay on first visit and covers the header, so the
+// Sign out button could never be clicked. authGoto set fabrios_tour_done AFTER
+// navigating, by which point the tour had already mounted. Seed it before load.
+const seeded = new WeakSet<Page>();
+async function seedLocalStorage(page: Page) {
+  if (seeded.has(page)) return;
+  seeded.add(page);
+  // ONLY the tour flag. Pre-setting fabrios_module made the app skip module select
+  // entirely, which step 1.03 exists to exercise — the module is chosen there.
+  await page.addInitScript(() => {
+    localStorage.setItem('fabrios_tour_done', '1');
+  });
+}
+
 async function authGoto(page: Page, targetUrl: string) {
+  await seedLocalStorage(page);
   await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
   await page.waitForTimeout(1000);
   const onLogin = page.url().includes('/login') ||
@@ -80,8 +124,13 @@ async function authGoto(page: Page, targetUrl: string) {
     }
     await page.getByPlaceholder('you@company.com').fill(S.email);
     await page.getByPlaceholder('••••••••').fill(S.password);
-    await page.getByRole('button', { name: /sign in/i }).click();
-    await page.waitForTimeout(3000);
+    await page.getByRole('button', { name: /sign in/i }).first().click();
+    // Wait for the sign-in to actually complete rather than guessing 3s. Under load
+    // the fixed wait expired while still on /login, and the step then failed on a
+    // control that had never rendered — an intermittent failure with no real cause.
+    await page.waitForFunction(() => !location.pathname.startsWith('/login'), null, { timeout: 20000 })
+      .catch(() => {});
+    await page.waitForTimeout(800);
     if (await page.getByText('Select your workspace').isVisible({ timeout: 3000 }).catch(() => false)) {
       await page.getByText('Both').click();
       await page.waitForTimeout(1000);
@@ -126,9 +175,20 @@ test.describe('Section 1 — Registration & Setup', () => {
     await clickVisible(page, /create account/i);
     await page.waitForTimeout(4000);
 
-    const wizardHeader = page.getByText("Let's set up your workspace");
-    const isInWizard = await wizardHeader.isVisible({ timeout: 8000 }).catch(() => false);
-    expect(isInWizard).toBe(true);
+    // Signup deliberately shows "Your account has been created!" on /login. Depending
+    // on how fast the session activates, the app may instead have already moved the
+    // user on to the setup wizard or module select. All three are correct — the thing
+    // worth asserting is that the account was created and no error was raised.
+    const created = page.getByText(/account has been created/i);
+    const wizard = page.getByText("Let's set up your workspace");
+    const moduleSelect = page.getByText(/Select your workspace/i);
+    const landed = await Promise.race([
+      created.waitFor({ state: 'visible', timeout: 15000 }).then(() => 'signup-success').catch(() => null),
+      wizard.waitFor({ state: 'visible', timeout: 15000 }).then(() => 'wizard').catch(() => null),
+      moduleSelect.waitFor({ state: 'visible', timeout: 15000 }).then(() => 'module-select').catch(() => null),
+    ]);
+    expect(landed, 'signup produced none of the three expected screens').toBeTruthy();
+    await expect(page.locator('body')).not.toContainText(/already registered|invalid|rate limit/i);
     console.log(`✅ 1.01 — Signed up: ${S.email}`);
   });
 
@@ -268,9 +328,9 @@ test.describe('Section 2 — Master Data', () => {
     await clickVisible(page, /add rate/i);
     await page.waitForTimeout(500);
 
-    await selectShadcn(page, 'Factory', new RegExp(S.factoryCode));
-    await selectShadcn(page, 'Worker Type', new RegExp(S.workerTypeName));
-    await selectShadcn(page, 'Shift', new RegExp(S.shiftCode));
+    await selectShadcn(page, 'Factory', new RegExp(S.factoryName));
+    // no Worker Type dropdown here — it comes from the row selected above
+    await selectShadcn(page, 'Shift', new RegExp(S.shiftName));
     await fillByLabel(page, 'Rate Value', '250');
     await fillByLabel(page, 'From', '2026-01-01');
 
@@ -345,7 +405,7 @@ test.describe('Section 2 — Master Data', () => {
 
     S.tableCode = unique('TBL-Z');
     S.tableName = unique('Zero Table');
-    await selectShadcn(page, 'Factory *', new RegExp(S.factoryCode));
+    await selectShadcn(page, 'Factory *', new RegExp(S.factoryName));
     await fillByLabel(page, 'Table Code *', S.tableCode);
     await fillByLabel(page, 'Table Name *', S.tableName);
 
@@ -388,11 +448,16 @@ test.describe('Section 3 — Printing Order', () => {
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
 
     S.printStyle = unique('STYLE-ZERO');
-    const buyerLabel = page.locator('label:text-is("Buyer *")');
-    if (await buyerLabel.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await selectShadcn(page, 'Buyer *', new RegExp(S.buyerCode));
-    }
-    await fillByLabel(page, 'Style *', S.printStyle);
+    // The dialog labels these "Customer *" and "Style / Design *". The old guard
+    // looked for "Buyer *", never found it, and silently created orders with no
+    // customer at all — a pass that proved nothing.
+    await selectShadcn(page, 'Customer *', new RegExp(S.buyerCode));
+    await fillByLabel(page, 'Style / Design *', S.printStyle);
+
+    // Fabric is required by handleSave; without it the save is refused and the
+    // order silently never appears. Product too, so the row is realistic.
+    await selectShadcn(page, 'Product', /Zero Print Product/);
+    await selectShadcn(page, 'Fabric *', new RegExp(S.fabricShort));  // list shows the short form
 
     // Row quantity / rate fields
     const numInputs = page.locator('[role="dialog"] input[type="number"]');
@@ -452,7 +517,7 @@ test.describe('Section 4 — BOM, PO, GRN', () => {
     const titleInput = page.locator('[role="dialog"] input').first();
     if (await titleInput.isVisible().catch(() => false)) await titleInput.fill(S.bomTitle);
 
-    await selectShadcn(page, 'Order', new RegExp(S.printStyle));
+    await selectShadcn(page, 'Order', /PO-P-/);
 
     // Line 1 — with vendor assigned (needed for PO generation)
     await clickVisible(page, /add line/i);
@@ -595,7 +660,7 @@ test.describe('Section 5 — Production Entry', () => {
     if (await singleTab.isVisible().catch(() => false)) await singleTab.click();
     await page.waitForTimeout(500);
 
-    await selectShadcn(page, 'Order *', new RegExp(S.printStyle));
+    await selectShadcn(page, 'Order *', /PO-P-/);
     await page.waitForTimeout(500);
 
     const colourLabel = page.locator('label:has-text("Colour")').first();
@@ -604,10 +669,10 @@ test.describe('Section 5 — Production Entry', () => {
       await page.waitForTimeout(300);
     }
 
-    await selectShadcn(page, 'Factory *', new RegExp(S.factoryCode));
+    await selectShadcn(page, 'Factory *', new RegExp(S.factoryName));
     await page.waitForTimeout(300);
 
-    await selectShadcn(page, 'Shift *', new RegExp(S.shiftCode));
+    await selectShadcn(page, 'Shift *', new RegExp(S.shiftName));
     await page.waitForTimeout(300);
 
     const resLabel = page.locator('label:has-text("Table")').first();
@@ -658,7 +723,7 @@ test.describe('Section 6 — Dispatch, Stock, Inventory', () => {
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
 
     // Order select (Internal PO options)
-    await selectShadcn(page, 'Order (Internal PO)', new RegExp(S.printStyle));
+    await selectShadcn(page, 'Order (Internal PO)', /PO-P-/);
     await page.waitForTimeout(500);
 
     await selectShadcn(page, 'Buyer', new RegExp(S.buyerName));
@@ -675,15 +740,18 @@ test.describe('Section 6 — Dispatch, Stock, Inventory', () => {
 
     // Vehicle + Challan
     await dialog.locator('label:text-is("Vehicle #")').locator('..').locator('input').first().fill('MH01-AB-1234');
-    await dialog.locator('label:text-is("Challan #")').locator('..').locator('input').first().fill(unique('CHL'));
+    S.challan = unique('CHL');
+    await dialog.locator('label:text-is("Challan #")').locator('..').locator('input').first().fill(S.challan);
 
     await dialog.getByRole('button', { name: /save/i }).click();
     await page.waitForTimeout(3000);
     await checkToast(page, 'Dispatch recorded');
     await noError(page);
 
+    // The list shows Date/Buyer/Type/Product/Colour/Qty/Challan — there is no
+    // vehicle column, so the old assertion could never pass. Assert the challan.
     const body = await page.locator('body').innerText();
-    expect(body).toContain('MH01-AB-1234');
+    expect(body, 'dispatch did not appear in the list').toContain(S.challan);
     console.log('✅ 6.01 — Dispatch recorded');
   });
 
@@ -786,7 +854,7 @@ test.describe('Section 7 — Reports & Persistence', () => {
     await authGoto(page, `${BASE}/`);
     await page.waitForTimeout(2000);
 
-    const signOutBtn = page.getByRole('button', { name: /sign out/i });
+    const signOutBtn = page.getByRole('button', { name: /sign out/i }).first();
     if (await signOutBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await signOutBtn.click();
       await page.waitForTimeout(2000);
